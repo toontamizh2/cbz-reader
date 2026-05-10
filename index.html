@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CBZ Reader</title>
+
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* HEADER */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 1000;
+
+      background: rgba(17, 17, 17, 0.95);
+      border-bottom: 1px solid #222;
+
+      padding: 10px;
+
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      transition: transform 0.3s ease;
+    }
+
+    .topbar.hidden {
+      transform: translateY(-100%);
+    }
+
+    .topbar h1 {
+      font-size: 18px;
+      margin-right: auto;
+      white-space: nowrap;
+    }
+
+    /* Buttons */
+    button {
+      background: #222;
+      color: white;
+      border: 1px solid #444;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    input[type="file"] {
+      color: white;
+    }
+
+    /* Reader */
+    #reader {
+      width: 100%;
+      margin-top: 60px;
+    }
+
+    .page {
+      width: 100%;
+      display: block;
+      margin: 0 auto;
+      transition: width 0.15s ease;
+    }
+
+    img {
+      display: block;
+      height: auto;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 20px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 100px 20px;
+      color: #aaa;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <div class="topbar" id="topbar">
+    <h1>CBZ Manhwa Reader</h1>
+
+    <button id="zoomOut">−</button>
+    <button id="zoomReset">100%</button>
+    <button id="zoomIn">+</button>
+
+    <input type="file" id="fileInput" accept=".cbz,.zip" />
+  </div>
+
+  <!-- READER -->
+  <div id="reader">
+    <div class="empty">
+      Upload a CBZ file to start reading
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const reader = document.getElementById("reader");
+
+    const zoomInBtn = document.getElementById("zoomIn");
+    const zoomOutBtn = document.getElementById("zoomOut");
+    const zoomResetBtn = document.getElementById("zoomReset");
+
+    const topbar = document.getElementById("topbar");
+
+    let zoomLevel = 1;
+
+    // APPLY ZOOM
+    function applyZoom() {
+      const pages = document.querySelectorAll(".page");
+
+      pages.forEach(img => {
+        img.style.width = `${zoomLevel * 100}%`;
+      });
+
+      zoomResetBtn.textContent = `${Math.round(zoomLevel * 100)}%`;
+    }
+
+    // ZOOM BUTTONS
+    zoomInBtn.addEventListener("click", () => {
+      zoomLevel += 0.1;
+      applyZoom();
+    });
+
+    zoomOutBtn.addEventListener("click", () => {
+      zoomLevel = Math.max(0.2, zoomLevel - 0.1);
+      applyZoom();
+    });
+
+    zoomResetBtn.addEventListener("click", () => {
+      zoomLevel = 1;
+      applyZoom();
+    });
+
+    // CTRL + SCROLL ZOOM
+    window.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;
+
+      e.preventDefault();
+
+      if (e.deltaY < 0) {
+        zoomLevel += 0.05;
+      } else {
+        zoomLevel = Math.max(0.2, zoomLevel - 0.05);
+      }
+
+      applyZoom();
+    }, { passive: false });
+
+    // HIDE HEADER WHEN SCROLLING DOWN
+    let lastScrollY = 0;
+
+    window.addEventListener("scroll", () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY > 50 && currentScrollY > lastScrollY) {
+        // scrolling down
+        topbar.classList.add("hidden");
+      } else {
+        // scrolling up
+        topbar.classList.remove("hidden");
+      }
+
+      lastScrollY = currentScrollY;
+    });
+
+    // LOAD CBZ
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      reader.innerHTML = `<div class="loading">Loading CBZ...</div>`;
+
+      try {
+        const zip = await JSZip.loadAsync(file);
+
+        let imageFiles = Object.keys(zip.files)
+          .filter(name =>
+            /\.(jpg|jpeg|png|webp)$/i.test(name)
+          )
+          .sort((a, b) =>
+            a.localeCompare(b, undefined, {
+              numeric: true,
+              sensitivity: "base"
+            })
+          );
+
+        if (imageFiles.length === 0) {
+          reader.innerHTML = `
+            <div class="empty">
+              No images found in CBZ
+            </div>
+          `;
+          return;
+        }
+
+        reader.innerHTML = "";
+
+        for (const filename of imageFiles) {
+          const fileData = zip.files[filename];
+
+          const blob = await fileData.async("blob");
+          const imageUrl = URL.createObjectURL(blob);
+
+          const img = document.createElement("img");
+          img.src = imageUrl;
+          img.className = "page";
+          img.loading = "lazy";
+
+          reader.appendChild(img);
+        }
+
+        applyZoom();
+
+      } catch (error) {
+        console.error(error);
+
+        reader.innerHTML = `
+          <div class="empty">
+            Failed to open CBZ file
+          </div>
+        `;
+      }
+    });
+  </script>
+
+</body>
+</html>
