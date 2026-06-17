@@ -1033,18 +1033,41 @@ function formatBytes(b) {
   if (b<1073741824)return (b/1048576).toFixed(1)+'MB';
   return (b/1073741824).toFixed(1)+'GB';
 }
-function resizeBlob(blob, maxPx=300) {
+function resizeBlob(blob, targetW=400) {
+  // Produces a sharp cover-cropped JPEG at a fixed 2:3 aspect ratio (matches the card),
+  // similar to CSS object-fit: cover — so it always looks crisp regardless of source size.
+  const targetH = Math.round(targetW * 1.5);
   return new Promise(res => {
     const fr = new FileReader();
     fr.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const scale  = Math.min(maxPx/img.width, maxPx*1.5/img.height, 1);
+        const srcRatio = img.width / img.height;
+        const dstRatio = targetW / targetH;
+
+        let sx, sy, sw, sh;
+        if (srcRatio > dstRatio) {
+          // source is wider than target -> crop sides
+          sh = img.height;
+          sw = sh * dstRatio;
+          sx = (img.width - sw) / 2;
+          sy = 0;
+        } else {
+          // source is taller than target -> crop top/bottom
+          sw = img.width;
+          sh = sw / dstRatio;
+          sx = 0;
+          sy = 0; // anchor to top (covers are usually at the top of the first page)
+        }
+
         const canvas = document.createElement('canvas');
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(b => res(b), 'image/jpeg', 0.75);
+        canvas.width  = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+        canvas.toBlob(b => res(b), 'image/jpeg', 0.85);
       };
       img.src = fr.result;
     };
