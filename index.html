@@ -740,6 +740,18 @@ async function renderLibrary(filter='') {
     </div>`; return;
   }
 
+  // Refresh signed cover URLs (bucket is private, stored URLs may be stale/broken)
+  await Promise.all(filtered.map(async comic => {
+    if (comic.cover_path) {
+      const { data: signed, error: signErr } = await sb.storage
+        .from(BUCKET)
+        .createSignedUrl(comic.cover_path, 60 * 60); // 1hr, just for this view
+      comic.cover_url = signErr ? null : signed?.signedUrl;
+    } else {
+      comic.cover_url = null;
+    }
+  }));
+
   grid.innerHTML = '';
   for (const comic of filtered) {
     const card = document.createElement('div');
@@ -839,13 +851,9 @@ async function uploadToCloud(file) {
         const { error: uploadErr } = await sb.storage.from(BUCKET).upload(thumbPath, thumbBlob, { contentType:'image/jpeg', upsert:true });
         if (!uploadErr) {
           coverPath = thumbPath;
-          const { data: urlData } = sb.storage.from(BUCKET).getPublicUrl(thumbPath);
-          coverUrl = urlData?.publicUrl || null;
-          // If bucket is private use signed URL instead
-          if (!coverUrl) {
-            const { data: signed } = await sb.storage.from(BUCKET).createSignedUrl(thumbPath, 60*60*24*365);
-            coverUrl = signed?.signedUrl || null;
-          }
+          // Bucket is private — must use a signed URL, getPublicUrl won't actually work
+          const { data: signed, error: signErr } = await sb.storage.from(BUCKET).createSignedUrl(thumbPath, 60*60*24*365);
+          if (!signErr) coverUrl = signed?.signedUrl || null;
         }
       }
     } catch(e) { /* cover extraction failed silently */ }
