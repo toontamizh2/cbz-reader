@@ -378,6 +378,17 @@
     .move-item svg { color:var(--text-muted); flex-shrink:0; }
 
 
+    /* Settings tabs */
+    .settings-tab {
+      flex:1; background:transparent; border:none; color:var(--text-muted);
+      padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12px;
+      font-weight:500; font-family:'Inter',sans-serif; transition:background .15s,color .15s;
+    }
+    .settings-tab:hover { background:var(--surface3); color:var(--text); }
+    .settings-tab.active { background:var(--surface); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.25); }
+    .settings-tab.danger-tab { color:var(--danger); }
+    .settings-tab.danger-tab.active { color:var(--danger); }
+
     /* Spinner */
     .spinner {
       width:14px; height:14px; border:2px solid rgba(255,255,255,.25);
@@ -495,6 +506,14 @@
           </svg>
           My Library
         </div>
+        <div class="user-menu-item" id="menuSettings">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.6 2.6l1.1 1.1M10.3 10.3l1.1 1.1M2.6 11.4l1.1-1.1M10.3 3.7l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          Account Settings
+        </div>
+        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
         <div class="user-menu-item danger" id="menuLogout">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M5 12H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
@@ -622,6 +641,95 @@
 
 <!-- ── TOAST ── -->
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
+
+<!-- ── ACCOUNT SETTINGS MODAL ── -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" id="settingsModalClose">✕</button>
+    <h2>Account Settings</h2>
+    <p class="modal-sub">Update your profile or manage your account.</p>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;background:var(--surface2);border-radius:10px;padding:4px;margin-bottom:24px;">
+      <button class="settings-tab active" data-tab="profile">Profile</button>
+      <button class="settings-tab" data-tab="password">Password</button>
+      <button class="settings-tab danger-tab" data-tab="danger">Delete Account</button>
+    </div>
+
+    <!-- Profile tab -->
+    <div class="settings-panel" id="tab-profile">
+      <div class="form-error" id="profileError"></div>
+      <div class="form-info"  id="profileInfo"></div>
+      <div class="field">
+        <label>Display Name</label>
+        <input type="text" id="settingsName" placeholder="Your name"/>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="settingsEmail" placeholder="you@example.com"/>
+      </div>
+      <button class="btn-primary" id="saveProfileBtn">Save changes</button>
+    </div>
+
+    <!-- Password tab -->
+    <div class="settings-panel" id="tab-password" style="display:none">
+      <div class="form-error" id="passwordError"></div>
+      <div class="form-info"  id="passwordInfo"></div>
+      <div class="field">
+        <label>New Password</label>
+        <input type="password" id="newPassword" placeholder="At least 6 characters"/>
+      </div>
+      <div class="field">
+        <label>Confirm New Password</label>
+        <input type="password" id="confirmPassword" placeholder="Repeat password"/>
+      </div>
+      <button class="btn-primary" id="savePasswordBtn">Update password</button>
+    </div>
+
+    <!-- Danger tab -->
+    <div class="settings-panel" id="tab-danger" style="display:none">
+      <div style="background:rgba(255,95,95,.07);border:1px solid rgba(255,95,95,.2);border-radius:var(--radius);padding:16px;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:6px;">⚠ Permanently delete account</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">This will delete your account, all uploaded CBZ files, covers, and library data. This action <strong style="color:var(--text)">cannot be undone</strong>.</div>
+      </div>
+      <div class="field">
+        <label>Type DELETE to confirm</label>
+        <input type="text" id="deleteConfirmInput" placeholder="DELETE"/>
+      </div>
+      <div class="form-error" id="deleteError"></div>
+      <button class="btn-primary" id="deleteAccountBtn" style="background:var(--danger);box-shadow:none">Delete my account permanently</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── FILE INFO MODAL ── -->
+<div class="modal-overlay" id="fileInfoModal">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" id="fileInfoModalClose">✕</button>
+    <h2 style="font-size:17px;margin-bottom:18px" id="fileInfoTitle">File Info</h2>
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:20px">
+      <div style="width:56px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px" id="fileInfoThumb">📖</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px;word-break:break-word" id="fileInfoName"></div>
+        <div style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace" id="fileInfoSize"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500">Uploaded on</span>
+        <span style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace" id="fileInfoDate"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500">Time (IST)</span>
+        <span style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace" id="fileInfoTime"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500">File size</span>
+        <span style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace" id="fileInfoSizeFull"></span>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -806,6 +914,10 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   document.getElementById('reader').innerHTML = '';
   showHomeState(false);
   showToast('Signed out.');
+});
+document.getElementById('menuSettings').addEventListener('click', () => {
+  document.getElementById('userMenu').classList.remove('open');
+  openSettingsModal();
 });
 document.getElementById('menuLibrary').addEventListener('click', () => {
   document.getElementById('userMenu').classList.remove('open');
@@ -1015,6 +1127,10 @@ async function renderLibrary() {
         </svg>
       </button>
       <div class="lib-row-menu" id="menu-file-${comic.id}">
+        <div class="lib-row-menu-item" data-action="info-file" data-id="${comic.id}">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 6.5v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="4.5" r=".8" fill="currentColor"/></svg>
+          Info
+        </div>
         <div class="lib-row-menu-item" data-action="move-file" data-id="${comic.id}">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4a1 1 0 0 1 1-1h2.5l1 1.3h4.5a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
           Move to…
@@ -1065,6 +1181,9 @@ async function renderLibrary() {
           showToast('Folder renamed.');
           await renderLibrary();
         }
+      } else if (action === 'info-file') {
+        const comic = files.find(c => c.id === id);
+        openFileInfoModal(comic);
       } else if (action === 'delete-file') {
         const comic = files.find(c => c.id === id);
         if (!confirm(`Delete "${comic.name}" from your library?`)) return;
@@ -1173,6 +1292,189 @@ async function openMoveModal(comic) {
   });
 }
 document.getElementById('moveModalClose').addEventListener('click', () => closeModal('moveModal'));
+
+// ═══════════════════════════════════════════════════════════
+//  ACCOUNT SETTINGS
+// ═══════════════════════════════════════════════════════════
+function openSettingsModal() {
+  // Pre-fill current values
+  document.getElementById('settingsName').value  = currentUser?.user_metadata?.name || '';
+  document.getElementById('settingsEmail').value = currentUser?.email || '';
+  document.getElementById('newPassword').value   = '';
+  document.getElementById('confirmPassword').value = '';
+  document.getElementById('deleteConfirmInput').value = '';
+  ['profileError','profileInfo','passwordError','passwordInfo','deleteError'].forEach(id => {
+    document.getElementById(id).classList.remove('show');
+  });
+  // Switch to profile tab
+  activateSettingsTab('profile');
+  openModal('settingsModal');
+}
+
+function activateSettingsTab(tab) {
+  document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
+  document.getElementById(`tab-${tab}`).style.display = 'block';
+}
+
+document.querySelectorAll('.settings-tab').forEach(tab => {
+  tab.addEventListener('click', () => activateSettingsTab(tab.dataset.tab));
+});
+document.getElementById('settingsModalClose').addEventListener('click', () => closeModal('settingsModal'));
+
+// Save profile (name + email)
+document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+  const name  = document.getElementById('settingsName').value.trim();
+  const email = document.getElementById('settingsEmail').value.trim();
+  const errEl = document.getElementById('profileError');
+  const infoEl = document.getElementById('profileInfo');
+  errEl.classList.remove('show'); infoEl.classList.remove('show');
+  if (!name || !email) { errEl.textContent = 'Name and email are required.'; errEl.classList.add('show'); return; }
+
+  const btn = document.getElementById('saveProfileBtn');
+  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Saving…`;
+
+  try {
+    const updates = {};
+    if (email !== currentUser.email) updates.email = email;
+    updates.data = { name };
+
+    const { data, error } = await sb.auth.updateUser(updates);
+    if (error) throw error;
+
+    // Refresh session
+    const { data: { user } } = await sb.auth.getUser();
+    currentUser = user;
+    setLoggedIn(user);
+
+    infoEl.textContent = email !== currentUser.email
+      ? 'Profile updated. Check your new email to confirm the change.'
+      : 'Profile updated successfully.';
+    infoEl.classList.add('show');
+    showToast('Profile updated.');
+  } catch(err) {
+    errEl.textContent = err.message || 'Failed to update profile.';
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Save changes';
+  }
+});
+
+// Update password
+document.getElementById('savePasswordBtn').addEventListener('click', async () => {
+  const newPw  = document.getElementById('newPassword').value;
+  const confPw = document.getElementById('confirmPassword').value;
+  const errEl  = document.getElementById('passwordError');
+  const infoEl = document.getElementById('passwordInfo');
+  errEl.classList.remove('show'); infoEl.classList.remove('show');
+
+  if (!newPw) { errEl.textContent = 'Please enter a new password.'; errEl.classList.add('show'); return; }
+  if (newPw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.classList.add('show'); return; }
+  if (newPw !== confPw) { errEl.textContent = 'Passwords do not match.'; errEl.classList.add('show'); return; }
+
+  const btn = document.getElementById('savePasswordBtn');
+  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Updating…`;
+
+  try {
+    const { error } = await sb.auth.updateUser({ password: newPw });
+    if (error) throw error;
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    infoEl.textContent = 'Password updated successfully.';
+    infoEl.classList.add('show');
+    showToast('Password updated.');
+  } catch(err) {
+    errEl.textContent = err.message || 'Failed to update password.';
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Update password';
+  }
+});
+
+// Delete account
+document.getElementById('deleteAccountBtn').addEventListener('click', async () => {
+  const confirm = document.getElementById('deleteConfirmInput').value.trim();
+  const errEl   = document.getElementById('deleteError');
+  errEl.classList.remove('show');
+  if (confirm !== 'DELETE') {
+    errEl.textContent = 'Please type DELETE (all caps) to confirm.';
+    errEl.classList.add('show'); return;
+  }
+
+  const btn = document.getElementById('deleteAccountBtn');
+  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Deleting…`;
+
+  try {
+    // Delete all storage files
+    const { data: comics } = await sb.from('library').select('storage_path, cover_path').eq('user_id', currentUser.id);
+    const paths = [];
+    for (const c of (comics || [])) {
+      if (c.storage_path) paths.push(c.storage_path);
+      if (c.cover_path)   paths.push(c.cover_path);
+    }
+    if (paths.length) await sb.storage.from(BUCKET).remove(paths);
+
+    // Delete DB rows (RLS cascades on folders/library via user_id)
+    await sb.from('library').delete().eq('user_id', currentUser.id);
+    await sb.from('folders').delete().eq('user_id', currentUser.id);
+
+    // Delete the auth user via Supabase edge function or admin — note: client-side delete requires
+    // Supabase "Allow users to delete their own account" to be enabled in Auth settings.
+    const { error } = await sb.rpc('delete_user');
+    if (error) throw new Error('Could not delete account. Ask your admin to enable user self-deletion in Supabase Auth settings.');
+
+    await sb.auth.signOut();
+    closeModal('settingsModal');
+    currentUser = null;
+    setLoggedIn(null);
+    showHomeState(false);
+    showToast('Account deleted. Goodbye.', 'info');
+  } catch(err) {
+    errEl.textContent = err.message || 'Failed to delete account.';
+    errEl.classList.add('show');
+    btn.disabled = false; btn.innerHTML = 'Delete my account permanently';
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  FILE INFO MODAL
+// ═══════════════════════════════════════════════════════════
+function openFileInfoModal(comic) {
+  document.getElementById('fileInfoTitle').textContent = 'File Info';
+  document.getElementById('fileInfoName').textContent  = comic.name;
+  document.getElementById('fileInfoSize').textContent  = formatBytes(comic.size);
+  document.getElementById('fileInfoSizeFull').textContent = formatBytes(comic.size);
+
+  // Cover thumb
+  const thumbEl = document.getElementById('fileInfoThumb');
+  thumbEl.innerHTML = comic.cover_url
+    ? `<img src="${escHtml(comic.cover_url)}" style="width:100%;height:100%;object-fit:cover" alt="cover"/>`
+    : '📖';
+
+  // Format added_at as IST (UTC+5:30)
+  const raw = comic.added_at;
+  if (raw) {
+    const dt = new Date(raw);
+    // IST = UTC + 5h30m
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const ist = new Date(dt.getTime() + istOffset);
+
+    const dateStr = ist.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'
+    });
+    const timeStr = ist.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+    document.getElementById('fileInfoDate').textContent = dateStr;
+    document.getElementById('fileInfoTime').textContent = timeStr.toUpperCase();
+  } else {
+    document.getElementById('fileInfoDate').textContent = '—';
+    document.getElementById('fileInfoTime').textContent = '—';
+  }
+
+  openModal('fileInfoModal');
+}
+document.getElementById('fileInfoModalClose').addEventListener('click', () => closeModal('fileInfoModal'));
 
 // ── Upload from library modal (via FAB) ──
 document.getElementById('libFileInput').addEventListener('change', async e => {
