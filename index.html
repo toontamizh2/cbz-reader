@@ -446,22 +446,6 @@
   </div>
   <div class="divider" id="zoomDivider" style="display:none"></div>
 
-  <!-- Prev / Next comic nav — shown only when reading a cloud comic -->
-  <div class="zoom-group" id="navGroup" style="display:none">
-    <button id="prevComicBtn" title="Previous comic">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path d="M9 11.5L4 7l5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    <span id="navLabel" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);padding:0 4px;min-width:36px;text-align:center">1/1</span>
-    <button id="nextComicBtn" title="Next comic">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path d="M5 2.5L10 7l-5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-  </div>
-  <div class="divider" id="navDivider" style="display:none"></div>
-
   <!-- Always-available: Open file works with or without login -->
   <div class="upload-wrap">
     <label for="fileInput">
@@ -947,9 +931,6 @@ document.getElementById('brandHome').addEventListener('click', () => {
     document.getElementById('zoomGroup').style.display   = 'none';
     document.getElementById('zoomDivider').style.display = 'none';
     currentFile = null;
-    comicPlaylist = [];
-    comicPlaylistIndex = -1;
-    updateNavButtons();
     updateSaveButton();
     showHomeState(!!currentUser);
   }
@@ -960,30 +941,6 @@ document.getElementById('brandHome').addEventListener('click', () => {
 // ═══════════════════════════════════════════════════════════
 let libCurrentFolderId = null;     // null = Home/root
 let libFolderPath      = [];       // [{id,name}, ...] breadcrumb trail
-let comicPlaylist      = [];       // ordered comics in the folder being browsed
-let comicPlaylistIndex = -1;       // index of the currently open comic
-
-function updateNavButtons() {
-  const show = comicPlaylist.length > 1 && comicPlaylistIndex >= 0;
-  document.getElementById('navGroup').style.display   = show ? 'flex' : 'none';
-  document.getElementById('navDivider').style.display = show ? 'block' : 'none';
-  if (show) {
-    document.getElementById('navLabel').textContent         = `${comicPlaylistIndex + 1}/${comicPlaylist.length}`;
-    document.getElementById('prevComicBtn').style.opacity   = comicPlaylistIndex === 0 ? '0.3' : '1';
-    document.getElementById('nextComicBtn').style.opacity   = comicPlaylistIndex === comicPlaylist.length - 1 ? '0.3' : '1';
-  }
-}
-
-document.getElementById('prevComicBtn').addEventListener('click', async () => {
-  if (comicPlaylistIndex <= 0) return;
-  comicPlaylistIndex--;
-  await openComicFromCloud(comicPlaylist[comicPlaylistIndex], false);
-});
-document.getElementById('nextComicBtn').addEventListener('click', async () => {
-  if (comicPlaylistIndex >= comicPlaylist.length - 1) return;
-  comicPlaylistIndex++;
-  await openComicFromCloud(comicPlaylist[comicPlaylistIndex], false);
-});
 let libSearchTerm      = '';
 
 function showLibraryPage() {
@@ -1091,9 +1048,7 @@ async function renderLibrary() {
     files   = lRes || [];
   }
 
-  // Keep playlist in sync with what's visible (for prev/next while reading)
-  comicPlaylist = files;
-  updateNavButtons();
+  if (folders.length === 0 && files.length === 0) {
     list.innerHTML = `<div class="lib-empty-state">
       <div class="lib-empty-icon">${libSearchTerm ? '🔍' : '📭'}</div>
       <div class="lib-empty-title">${libSearchTerm ? 'No results' : 'This folder is empty'}</div>
@@ -1623,20 +1578,10 @@ async function uploadToCloud(file, folderId = null, label = null) {
   }
 }
 
-async function openComicFromCloud(comic, fromLibrary = true) {
-  // Update playlist index
-  const idx = comicPlaylist.findIndex(c => c.id === comic.id);
-  if (idx !== -1) comicPlaylistIndex = idx;
-  else if (fromLibrary) {
-    // Comic not in current playlist (e.g. opened from search) — make it a solo playlist
-    comicPlaylist      = [comic];
-    comicPlaylistIndex = 0;
-  }
-
+async function openComicFromCloud(comic) {
   document.getElementById('filename').textContent = comic.name;
   document.getElementById('zoomGroup').style.display   = 'flex';
   document.getElementById('zoomDivider').style.display = 'block';
-  updateNavButtons();
   currentFile = { file: null, name: comic.name, fromCloud: true };
   updateSaveButton();
 
