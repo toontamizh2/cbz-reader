@@ -611,7 +611,7 @@
     </button>
   </div>
 
-  <input type="file" id="libFileInput" accept=".cbz,.zip" style="display:none"/>
+  <input type="file" id="libFileInput" accept=".cbz,.zip" multiple style="display:none"/>
 </div>
 
 <!-- ── NEW FOLDER MODAL ── -->
@@ -1472,12 +1472,16 @@ function openFileInfoModal(comic) {
 }
 document.getElementById('fileInfoModalClose').addEventListener('click', () => closeModal('fileInfoModal'));
 
-// ── Upload from library modal (via FAB) ──
+// ── Upload from library (via FAB) — supports multiple files ──
 document.getElementById('libFileInput').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
   e.target.value = '';
-  await uploadToCloud(file, libCurrentFolderId);
+  const multi = files.length > 1;
+  for (let i = 0; i < files.length; i++) {
+    const label = multi ? `${i + 1} of ${files.length}` : null;
+    await uploadToCloud(files[i], libCurrentFolderId, label);
+  }
   await renderLibrary();
 });
 
@@ -1505,14 +1509,14 @@ document.getElementById('saveToCloudBtn').addEventListener('click', async () => 
   updateSaveButton();
 });
 
-async function uploadToCloud(file, folderId = null) {
+async function uploadToCloud(file, folderId = null, label = null) {
   if (!currentUser) return;
   const prog    = document.getElementById('libProgress');
   const bar     = document.getElementById('libProgressBar');
   const pName   = document.getElementById('libProgressName');
   const pStatus = document.getElementById('libProgressStatus');
 
-  pName.textContent   = file.name;
+  pName.textContent   = label ? `${label}  •  ${file.name}` : file.name;
   pStatus.textContent = 'Extracting cover…';
   bar.style.width     = '0%';
   prog.classList.add('show');
