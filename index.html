@@ -1,420 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>CBZ Reader</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <style>
     :root {
-      --bg:          #0a0a0f;
-      --surface:     #13131a;
-      --surface2:    #1a1a24;
-      --surface3:    #20202e;
-      --border:      #1e1e2e;
-      --border2:     #2a2a3e;
-      --accent:      #7c6bff;
-      --accent-dim:  rgba(124,107,255,0.15);
-      --accent-glow: rgba(124,107,255,0.35);
-      --danger:      #ff5f5f;
-      --success:     #4ade80;
-      --text:        #e8e6f0;
-      --text-muted:  #6b6880;
-      --text-faint:  #3a3850;
-      --radius:      10px;
-      --radius-lg:   16px;
+      --bg:#0a0a0f; --surface:#13131a; --surface2:#1a1a24; --surface3:#20202e;
+      --border:#1e1e2e; --border2:#2a2a3e;
+      --accent:#7c6bff; --accent-dim:rgba(124,107,255,.15); --accent-glow:rgba(124,107,255,.35);
+      --danger:#ff5f5f; --success:#4ade80;
+      --text:#e8e6f0; --text-muted:#6b6880; --text-faint:#3a3850;
+      --radius:10px; --radius-lg:16px;
     }
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    body {
-      background:var(--bg); color:var(--text);
-      font-family:'Inter',sans-serif; overflow-x:hidden; min-height:100vh;
-    }
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;min-height:100vh;}
 
-    /* ── TOPBAR ── */
-    .topbar {
-      position:fixed; top:0; left:0; width:100%; z-index:1000;
-      background:rgba(10,10,15,0.88);
-      backdrop-filter:blur(20px) saturate(160%);
+    /* TOPBAR */
+    .topbar{position:fixed;top:0;left:0;width:100%;z-index:1000;height:58px;padding:0 20px;
+      display:flex;align-items:center;gap:8px;
+      background:rgba(10,10,15,.88);backdrop-filter:blur(20px) saturate(160%);
       -webkit-backdrop-filter:blur(20px) saturate(160%);
-      box-shadow:0 1px 0 0 var(--border), 0 4px 30px rgba(0,0,0,.5);
-      padding:0 20px; height:58px;
-      display:flex; align-items:center; gap:8px;
-      transition:transform .35s cubic-bezier(.4,0,.2,1), opacity .35s ease;
-    }
-    .topbar.hidden { transform:translateY(-100%); opacity:0; }
-    .brand { display:flex; align-items:center; gap:10px; cursor:pointer; }
-    .brand-icon {
-      width:30px; height:30px; background:var(--accent-dim);
-      border:1px solid var(--accent-glow); border-radius:8px;
-      display:flex; align-items:center; justify-content:center; color:var(--accent);
-    }
-    .brand-name { font-size:15px; font-weight:600; letter-spacing:-.01em; }
-    .filename {
-      font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-muted);
-      max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .topbar-spacer { flex:1; }
-    .divider { width:1px; height:24px; background:var(--border); margin:0 4px; flex-shrink:0; }
+      box-shadow:0 1px 0 0 var(--border),0 4px 30px rgba(0,0,0,.5);
+      transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .35s ease;}
+    .topbar.hidden{transform:translateY(-100%);opacity:0;}
+    .brand{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:0;}
+    .brand-icon{width:30px;height:30px;background:var(--accent-dim);border:1px solid var(--accent-glow);
+      border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--accent);}
+    .brand-name{font-size:15px;font-weight:600;letter-spacing:-.01em;}
+    .topbar-spacer{flex:1;}
+    .divider{width:1px;height:24px;background:var(--border);margin:0 4px;flex-shrink:0;}
+    .filename{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);
+      max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-    /* Zoom */
-    .zoom-group {
-      display:flex; align-items:center; gap:2px;
-      background:var(--surface); border:1px solid var(--border);
-      border-radius:var(--radius); padding:3px;
-    }
-    .zoom-group button {
-      background:transparent; border:none; color:var(--text-muted);
-      width:30px; height:30px; border-radius:7px; cursor:pointer; font-size:16px;
-      font-family:'Inter',sans-serif; display:flex; align-items:center;
-      justify-content:center; transition:background .15s,color .15s; padding:0;
-    }
-    .zoom-group button:hover { background:var(--surface2); color:var(--text); }
-    #zoomReset {
-      font-size:12px !important; font-weight:500;
-      font-family:'JetBrains Mono',monospace !important;
-      width:52px !important; color:var(--text) !important; letter-spacing:-.03em;
-    }
+    /* ZOOM GROUP */
+    .zoom-group{display:flex;align-items:center;gap:2px;background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--radius);padding:3px;}
+    .zoom-group button{background:transparent;border:none;color:var(--text-muted);
+      width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:16px;
+      font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;
+      transition:background .15s,color .15s;padding:0;}
+    .zoom-group button:hover{background:var(--surface2);color:var(--text);}
+    #zoomReset{font-size:12px!important;font-weight:500;font-family:'JetBrains Mono',monospace!important;
+      width:52px!important;color:var(--text)!important;letter-spacing:-.03em;}
+    #navLabel{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);
+      padding:0 4px;min-width:38px;text-align:center;user-select:none;}
 
-    /* Buttons */
-    .btn-ghost {
-      display:flex; align-items:center; gap:6px;
-      background:var(--surface); border:1px solid var(--border2);
-      color:var(--text); padding:7px 14px; border-radius:var(--radius);
-      cursor:pointer; font-size:13px; font-weight:500; font-family:'Inter',sans-serif;
-      transition:background .2s,border-color .2s; white-space:nowrap;
-    }
-    .btn-ghost:hover { background:var(--surface2); border-color:var(--accent); }
-    .btn-accent {
-      display:flex; align-items:center; gap:7px;
-      background:var(--accent); color:#fff; padding:7px 14px;
-      border-radius:var(--radius); cursor:pointer; font-size:13px; font-weight:500;
-      font-family:'Inter',sans-serif; border:none;
-      transition:background .2s,box-shadow .2s; white-space:nowrap;
-    }
-    .btn-accent:hover { background:#8d7dff; box-shadow:0 0 16px var(--accent-glow); }
+    /* BUTTONS */
+    .btn-ghost{display:flex;align-items:center;gap:6px;background:var(--surface);
+      border:1px solid var(--border2);color:var(--text);padding:7px 14px;
+      border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500;
+      font-family:'Inter',sans-serif;transition:background .2s,border-color .2s;white-space:nowrap;}
+    .btn-ghost:hover{background:var(--surface2);border-color:var(--accent);}
+    .btn-accent{display:flex;align-items:center;gap:7px;background:var(--accent);color:#fff;
+      padding:7px 14px;border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500;
+      font-family:'Inter',sans-serif;border:none;transition:background .2s,box-shadow .2s;white-space:nowrap;}
+    .btn-accent:hover{background:#8d7dff;box-shadow:0 0 16px var(--accent-glow);}
+    .btn-primary{width:100%;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);
+      padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;
+      transition:background .2s,box-shadow .2s;margin-top:4px;
+      display:flex;align-items:center;justify-content:center;gap:8px;}
+    .btn-primary:hover:not(:disabled){background:#8d7dff;box-shadow:0 0 20px var(--accent-glow);}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
 
-    /* Upload wrap */
-    .upload-wrap { position:relative; overflow:hidden; }
-    .upload-wrap label {
-      display:flex; align-items:center; gap:7px; background:var(--accent);
-      color:#fff; padding:7px 14px; border-radius:var(--radius); cursor:pointer;
-      font-size:13px; font-weight:500; font-family:'Inter',sans-serif;
-      transition:background .2s,box-shadow .2s; white-space:nowrap;
-    }
-    .upload-wrap label:hover { background:#8d7dff; box-shadow:0 0 16px var(--accent-glow); }
-    .upload-wrap input { position:absolute; inset:0; opacity:0; cursor:pointer; font-size:0; }
+    /* UPLOAD WRAP */
+    .upload-wrap{position:relative;overflow:hidden;}
+    .upload-wrap label{display:flex;align-items:center;gap:7px;background:var(--accent);color:#fff;
+      padding:7px 14px;border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500;
+      font-family:'Inter',sans-serif;transition:background .2s,box-shadow .2s;white-space:nowrap;}
+    .upload-wrap label:hover{background:#8d7dff;box-shadow:0 0 16px var(--accent-glow);}
+    .upload-wrap input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;}
 
-    /* User chip */
-    .user-chip {
-      display:flex; align-items:center; gap:8px; background:var(--surface);
-      border:1px solid var(--border2); border-radius:var(--radius);
-      padding:5px 10px; cursor:pointer; transition:background .2s;
-    }
-    .user-chip:hover { background:var(--surface2); }
-    .avatar {
-      width:24px; height:24px; border-radius:50%; background:var(--accent-dim);
-      border:1px solid var(--accent-glow); display:flex; align-items:center;
-      justify-content:center; font-size:11px; font-weight:600; color:var(--accent);
-    }
-    .chip-name { font-size:13px; font-weight:500; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    /* USER CHIP */
+    .user-chip{display:flex;align-items:center;gap:8px;background:var(--surface);
+      border:1px solid var(--border2);border-radius:var(--radius);padding:5px 10px;
+      cursor:pointer;transition:background .2s;}
+    .user-chip:hover{background:var(--surface2);}
+    .avatar{width:24px;height:24px;border-radius:50%;background:var(--accent-dim);
+      border:1px solid var(--accent-glow);display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:600;color:var(--accent);}
+    .chip-name{font-size:13px;font-weight:500;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-    /* User menu */
-    .user-menu-wrap { position:relative; }
-    .user-menu {
-      position:absolute; top:calc(100% + 8px); right:0;
-      background:var(--surface); border:1px solid var(--border2);
-      border-radius:var(--radius); min-width:190px;
-      box-shadow:0 12px 40px rgba(0,0,0,.5); z-index:1100; overflow:hidden;
-      opacity:0; pointer-events:none; transform:translateY(-4px);
-      transition:opacity .15s,transform .15s;
-    }
-    .user-menu.open { opacity:1; pointer-events:all; transform:translateY(0); }
-    .user-menu-header { padding:12px 14px 10px; border-bottom:1px solid var(--border); }
-    .user-menu-name { font-size:13px; font-weight:600; }
-    .user-menu-email { font-size:11px; color:var(--text-muted); margin-top:2px; font-family:'JetBrains Mono',monospace; }
-    .user-menu-item {
-      display:flex; align-items:center; gap:10px; padding:10px 14px;
-      cursor:pointer; font-size:13px; transition:background .15s; color:var(--text-muted);
-    }
-    .user-menu-item:hover { background:var(--surface2); color:var(--text); }
-    .user-menu-item.danger { color:var(--danger); }
-    .user-menu-item.danger:hover { background:rgba(255,95,95,.1); }
+    /* USER MENU */
+    .user-menu-wrap{position:relative;}
+    .user-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);
+      border:1px solid var(--border2);border-radius:var(--radius);min-width:190px;
+      box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:1100;overflow:hidden;
+      opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity .15s,transform .15s;}
+    .user-menu.open{opacity:1;pointer-events:all;transform:translateY(0);}
+    .user-menu-header{padding:12px 14px 10px;border-bottom:1px solid var(--border);}
+    .user-menu-name{font-size:13px;font-weight:600;}
+    .user-menu-email{font-size:11px;color:var(--text-muted);margin-top:2px;font-family:'JetBrains Mono',monospace;}
+    .user-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;
+      cursor:pointer;font-size:13px;transition:background .15s;color:var(--text-muted);}
+    .user-menu-item:hover{background:var(--surface2);color:var(--text);}
+    .user-menu-item.danger{color:var(--danger);}
+    .user-menu-item.danger:hover{background:rgba(255,95,95,.1);}
+    .menu-sep{height:1px;background:var(--border);margin:4px 0;}
 
-    /* ── READER ── */
-    #reader { width:100%; margin-top:58px; }
-    .page { width:100%; display:block; margin:0 auto; transition:width .15s ease; opacity:0; }
-    .page.visible { animation:fadeIn .4s ease forwards; }
-    img { display:block; height:auto; }
-    @keyframes fadeIn {
-      from { opacity:0; transform:translateY(6px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
+    /* READER */
+    #reader{width:100%;margin-top:58px;}
+    .page{width:100%;display:block;margin:0 auto;transition:width .15s ease;opacity:0;}
+    .page.visible{animation:fadeIn .4s ease forwards;}
+    img{display:block;height:auto;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-    /* ── STATES ── */
-    .state-wrapper {
-      display:flex; flex-direction:column; align-items:center; justify-content:center;
-      min-height:calc(100vh - 58px); gap:16px; padding:40px 20px; color:var(--text-muted);
-    }
-    .state-icon {
-      width:64px; height:64px; background:var(--surface); border:1px solid var(--border);
-      border-radius:18px; display:flex; align-items:center; justify-content:center;
-      font-size:28px; margin-bottom:4px;
-    }
-    .state-title { font-size:16px; font-weight:600; color:var(--text); letter-spacing:-.01em; }
-    .state-sub { font-size:13px; color:var(--text-muted); text-align:center; max-width:280px; line-height:1.6; }
-    .loading-bar-wrap { width:200px; height:3px; background:var(--surface2); border-radius:99px; overflow:hidden; }
-    .loading-bar { height:100%; width:40%; background:var(--accent); border-radius:99px; animation:slide 1.2s ease-in-out infinite; }
-    @keyframes slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(600%)} }
+    /* STATES */
+    .state-wrapper{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      min-height:calc(100vh - 58px);gap:16px;padding:40px 20px;color:var(--text-muted);}
+    .state-icon{width:64px;height:64px;background:var(--surface);border:1px solid var(--border);
+      border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:4px;}
+    .state-title{font-size:16px;font-weight:600;color:var(--text);letter-spacing:-.01em;}
+    .state-sub{font-size:13px;color:var(--text-muted);text-align:center;max-width:280px;line-height:1.6;}
+    .loading-bar-wrap{width:200px;height:3px;background:var(--surface2);border-radius:99px;overflow:hidden;}
+    .loading-bar{height:100%;width:40%;background:var(--accent);border-radius:99px;animation:slide 1.2s ease-in-out infinite;}
+    @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(600%)}}
 
-    /* ── MODAL ── */
-    .modal-overlay {
-      position:fixed; inset:0; z-index:2000;
-      background:rgba(0,0,0,.75); backdrop-filter:blur(6px);
-      display:flex; align-items:center; justify-content:center;
-      padding:20px; opacity:0; pointer-events:none; transition:opacity .25s ease;
-    }
-    .modal-overlay.open { opacity:1; pointer-events:all; }
-    .modal {
-      background:var(--surface); border:1px solid var(--border2);
-      border-radius:var(--radius-lg); width:100%; max-width:420px; padding:32px;
-      position:relative; transform:translateY(12px); transition:transform .25s ease;
-      box-shadow:0 24px 80px rgba(0,0,0,.6);
-    }
-    .modal-overlay.open .modal { transform:translateY(0); }
-    .modal-close {
-      position:absolute; top:14px; right:14px; background:transparent; border:none;
-      color:var(--text-muted); width:30px; height:30px; border-radius:8px;
-      cursor:pointer; font-size:18px; display:flex; align-items:center;
-      justify-content:center; transition:background .15s,color .15s;
-    }
-    .modal-close:hover { background:var(--surface2); color:var(--text); }
-    .modal h2 { font-size:20px; font-weight:600; letter-spacing:-.02em; margin-bottom:6px; }
-    .modal-sub { font-size:13px; color:var(--text-muted); margin-bottom:24px; line-height:1.5; }
+    /* MODAL */
+    .modal-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.75);
+      backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;
+      padding:20px;opacity:0;pointer-events:none;transition:opacity .25s ease;}
+    .modal-overlay.open{opacity:1;pointer-events:all;}
+    .modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);
+      width:100%;max-width:420px;padding:32px;position:relative;
+      transform:translateY(12px);transition:transform .25s ease;box-shadow:0 24px 80px rgba(0,0,0,.6);}
+    .modal-overlay.open .modal{transform:translateY(0);}
+    .modal-close{position:absolute;top:14px;right:14px;background:transparent;border:none;
+      color:var(--text-muted);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;
+      display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;}
+    .modal-close:hover{background:var(--surface2);color:var(--text);}
+    .modal h2{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px;}
+    .modal-sub{font-size:13px;color:var(--text-muted);margin-bottom:24px;line-height:1.5;}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+    .field label{font-size:12px;font-weight:500;color:var(--text-muted);letter-spacing:.02em;text-transform:uppercase;}
+    .field input{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);
+      padding:10px 14px;color:var(--text);font-size:14px;font-family:'Inter',sans-serif;
+      outline:none;transition:border-color .2s,box-shadow .2s;width:100%;}
+    .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+    .field input::placeholder{color:var(--text-faint);}
+    .modal-switch{margin-top:16px;text-align:center;font-size:13px;color:var(--text-muted);}
+    .modal-switch a{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:500;}
+    .modal-switch a:hover{text-decoration:underline;}
+    .form-error{background:rgba(255,95,95,.12);border:1px solid rgba(255,95,95,.3);color:var(--danger);
+      border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none;}
+    .form-error.show{display:block;}
+    .form-info{background:rgba(124,107,255,.1);border:1px solid rgba(124,107,255,.25);color:#a89fff;
+      border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none;}
+    .form-info.show{display:block;}
 
-    /* Form */
-    .field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
-    .field label { font-size:12px; font-weight:500; color:var(--text-muted); letter-spacing:.02em; text-transform:uppercase; }
-    .field input {
-      background:var(--surface2); border:1px solid var(--border2);
-      border-radius:var(--radius); padding:10px 14px; color:var(--text);
-      font-size:14px; font-family:'Inter',sans-serif; outline:none;
-      transition:border-color .2s,box-shadow .2s; width:100%;
-    }
-    .field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
-    .field input::placeholder { color:var(--text-faint); }
-    .btn-primary {
-      width:100%; background:var(--accent); color:#fff; border:none;
-      border-radius:var(--radius); padding:11px; font-size:14px; font-weight:600;
-      cursor:pointer; font-family:'Inter',sans-serif;
-      transition:background .2s,box-shadow .2s; margin-top:4px;
-      display:flex; align-items:center; justify-content:center; gap:8px;
-    }
-    .btn-primary:hover:not(:disabled) { background:#8d7dff; box-shadow:0 0 20px var(--accent-glow); }
-    .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
-    .modal-switch { margin-top:16px; text-align:center; font-size:13px; color:var(--text-muted); }
-    .modal-switch a { color:var(--accent); cursor:pointer; text-decoration:none; font-weight:500; }
-    .modal-switch a:hover { text-decoration:underline; }
-    .form-error {
-      background:rgba(255,95,95,.12); border:1px solid rgba(255,95,95,.3);
-      color:var(--danger); border-radius:8px; padding:10px 14px;
-      font-size:13px; margin-bottom:14px; display:none;
-    }
-    .form-error.show { display:block; }
-    .form-info {
-      background:rgba(124,107,255,.1); border:1px solid rgba(124,107,255,.25);
-      color:#a89fff; border-radius:8px; padding:10px 14px;
-      font-size:13px; margin-bottom:14px; display:none;
-    }
-    .form-info.show { display:block; }
+    /* SETTINGS TABS */
+    .settings-tab{flex:1;background:transparent;border:none;color:var(--text-muted);
+      padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;
+      font-family:'Inter',sans-serif;transition:background .15s,color .15s;}
+    .settings-tab:hover{background:var(--surface3);color:var(--text);}
+    .settings-tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25);}
+    .settings-tab.danger-tab{color:var(--danger);}
 
-    /* ── LIBRARY FULL PAGE ── */
-    #libraryPage { width:100%; min-height:calc(100vh - 58px); position:relative; }
+    /* LIBRARY FULL PAGE */
+    #libraryPage{width:100%;min-height:calc(100vh - 58px);position:relative;}
+    .lib-page-topbar{display:flex;align-items:center;gap:14px;padding:28px 32px 18px;
+      max-width:900px;margin:0 auto;flex-wrap:wrap;}
+    .lib-back{background:var(--surface);border:1px solid var(--border2);color:var(--text-muted);
+      width:34px;height:34px;border-radius:9px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      transition:background .15s,color .15s;flex-shrink:0;}
+    .lib-back:hover{background:var(--surface2);color:var(--text);}
+    .lib-breadcrumb{font-size:22px;font-weight:600;letter-spacing:-.02em;
+      display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .lib-breadcrumb .crumb-sep{color:var(--text-faint);font-weight:400;font-size:18px;}
+    .lib-breadcrumb .crumb-link{cursor:pointer;color:var(--text-muted);transition:color .15s;}
+    .lib-breadcrumb .crumb-link:hover{color:var(--text);}
+    .lib-breadcrumb .crumb-current{color:var(--text);}
+    .lib-page-search-wrap{margin-left:auto;min-width:220px;flex:0 1 280px;}
+    .lib-search{width:100%;background:var(--surface);border:1px solid var(--border2);
+      border-radius:var(--radius);padding:9px 14px;color:var(--text);font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;}
+    .lib-search:focus{border-color:var(--accent);}
+    .lib-search::placeholder{color:var(--text-faint);}
 
-    .lib-page-topbar {
-      display:flex; align-items:center; gap:14px;
-      padding:28px 32px 18px; max-width:900px; margin:0 auto;
-      flex-wrap:wrap;
-    }
-    .lib-back {
-      background:var(--surface); border:1px solid var(--border2); color:var(--text-muted);
-      width:34px; height:34px; border-radius:9px; cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
-      transition:background .15s,color .15s; flex-shrink:0;
-    }
-    .lib-back:hover { background:var(--surface2); color:var(--text); }
-    .lib-breadcrumb {
-      font-size:22px; font-weight:600; letter-spacing:-.02em;
-      display:flex; align-items:center; gap:8px; flex-shrink:0;
-    }
-    .lib-breadcrumb .crumb-sep { color:var(--text-faint); font-weight:400; font-size:18px; }
-    .lib-breadcrumb .crumb-link { cursor:pointer; color:var(--text-muted); transition:color .15s; }
-    .lib-breadcrumb .crumb-link:hover { color:var(--text); }
-    .lib-breadcrumb .crumb-current { color:var(--text); }
-    .lib-page-search-wrap { margin-left:auto; min-width:220px; flex:0 1 280px; }
+    .lib-progress{background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius);
+      padding:12px 16px;max-width:900px;margin:0 auto 0;width:calc(100% - 64px);
+      display:none;gap:12px;align-items:center;flex-wrap:wrap;}
+    .lib-progress.show{display:flex;margin-bottom:8px;}
+    .lib-progress-info{flex:1;min-width:0;}
+    .lib-progress-name{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .lib-progress-status{font-size:11px;color:var(--text-muted);margin-top:3px;font-family:'JetBrains Mono',monospace;}
+    .lib-progress-bar-wrap{width:100%;height:3px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-top:8px;}
+    .lib-progress-bar{height:100%;background:var(--accent);border-radius:99px;width:0%;transition:width .3s ease;}
 
-    .lib-search {
-      width:100%; background:var(--surface); border:1px solid var(--border2);
-      border-radius:var(--radius); padding:9px 14px; color:var(--text);
-      font-size:13px; font-family:'Inter',sans-serif; outline:none;
-      transition:border-color .2s;
-    }
-    .lib-search:focus { border-color:var(--accent); }
-    .lib-search::placeholder { color:var(--text-faint); }
+    .lib-page-body{max-width:900px;margin:0 auto;padding:8px 32px 100px;}
+    .lib-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;}
 
-    .lib-progress {
-      background:var(--surface3); border:1px solid var(--border2);
-      border-radius:var(--radius); padding:12px 16px;
-      max-width:900px; margin:0 auto 0; width:calc(100% - 64px);
-      display:none; gap:12px; align-items:center; flex-wrap:wrap;
-    }
-    .lib-progress.show { display:flex; margin-bottom:8px; }
-    .lib-progress-info { flex:1; min-width:0; }
-    .lib-progress-name { font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .lib-progress-status { font-size:11px; color:var(--text-muted); margin-top:3px; font-family:'JetBrains Mono',monospace; }
-    .lib-progress-bar-wrap { width:100%; height:3px; background:var(--surface2); border-radius:99px; overflow:hidden; margin-top:8px; }
-    .lib-progress-bar { height:100%; background:var(--accent); border-radius:99px; width:0%; transition:width .3s ease; }
+    .lib-row{display:flex;align-items:center;gap:14px;background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;
+      cursor:pointer;transition:border-color .15s,background .15s;position:relative;}
+    .lib-row:hover{border-color:var(--border2);background:var(--surface2);}
+    .lib-row-icon{width:44px;height:44px;border-radius:10px;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;font-size:18px;
+      overflow:hidden;background:var(--surface3);border:1px solid var(--border);}
+    .lib-row-icon.folder{background:var(--accent-dim);border-color:var(--accent-glow);color:var(--accent);}
+    .lib-row-icon img{width:100%;height:100%;object-fit:cover;}
+    .lib-row-body{flex:1;min-width:0;}
+    .lib-row-name{font-size:15px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .lib-row-meta{font-size:11px;color:var(--text-muted);margin-top:3px;font-family:'JetBrains Mono',monospace;}
+    .lib-row-menu-btn{background:transparent;border:none;color:var(--text-muted);
+      width:32px;height:32px;border-radius:8px;cursor:pointer;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;}
+    .lib-row-menu-btn:hover{background:var(--surface3);color:var(--text);}
+    .lib-row-menu{position:absolute;top:calc(100% + 4px);right:16px;background:var(--surface2);
+      border:1px solid var(--border2);border-radius:var(--radius);min-width:190px;
+      box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:50;overflow:hidden;
+      opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity .15s,transform .15s;}
+    .lib-row-menu.open{opacity:1;pointer-events:all;transform:translateY(0);}
+    .lib-row-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;
+      cursor:pointer;font-size:13px;color:var(--text-muted);transition:background .15s;}
+    .lib-row-menu-item:hover{background:var(--surface3);color:var(--text);}
+    .lib-row-menu-item.danger{color:var(--danger);}
+    .lib-row-menu-item.danger:hover{background:rgba(255,95,95,.1);}
+    .lib-row-menu-divider{height:1px;background:var(--border);margin:4px 0;}
 
-    .lib-page-body { max-width:900px; margin:0 auto; padding:8px 32px 100px; }
-
-    .lib-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
-    .lib-list-page { min-height:200px; }
-
-    .lib-row {
-      display:flex; align-items:center; gap:14px;
-      background:var(--surface); border:1px solid var(--border);
-      border-radius:var(--radius-lg); padding:14px 16px;
-      cursor:pointer; transition:border-color .15s, background .15s, transform .1s;
-      position:relative;
-    }
-    .lib-row:hover { border-color:var(--border2); background:var(--surface2); }
-
-    .lib-row-icon {
-      width:44px; height:44px; border-radius:10px; flex-shrink:0;
-      display:flex; align-items:center; justify-content:center;
-      font-size:18px; overflow:hidden; background:var(--surface3);
-      border:1px solid var(--border);
-    }
-    .lib-row-icon.folder { background:var(--accent-dim); border-color:var(--accent-glow); color:var(--accent); }
-    .lib-row-icon img { width:100%; height:100%; object-fit:cover; }
-
-    .lib-row-body { flex:1; min-width:0; }
-    .lib-row-name { font-size:15px; font-weight:500; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .lib-row-meta { font-size:11px; color:var(--text-muted); margin-top:3px; font-family:'JetBrains Mono',monospace; }
-
-    .lib-row-menu-btn {
-      background:transparent; border:none; color:var(--text-muted);
-      width:32px; height:32px; border-radius:8px; cursor:pointer; flex-shrink:0;
-      display:flex; align-items:center; justify-content:center;
-      transition:background .15s,color .15s;
-    }
-    .lib-row-menu-btn:hover { background:var(--surface3); color:var(--text); }
-
-    .lib-row-menu {
-      position:absolute; top:calc(100% + 4px); right:16px;
-      background:var(--surface2); border:1px solid var(--border2);
-      border-radius:var(--radius); min-width:190px;
-      box-shadow:0 12px 40px rgba(0,0,0,.5); z-index:50; overflow:hidden;
-      opacity:0; pointer-events:none; transform:translateY(-4px);
-      transition:opacity .15s,transform .15s;
-    }
-    .lib-row-menu.open { opacity:1; pointer-events:all; transform:translateY(0); }
-    .lib-row-menu-item {
-      display:flex; align-items:center; gap:10px; padding:10px 14px;
-      cursor:pointer; font-size:13px; color:var(--text-muted); transition:background .15s;
-    }
-    .lib-row-menu-item:hover { background:var(--surface3); color:var(--text); }
-    .lib-row-menu-item.danger { color:var(--danger); }
-    .lib-row-menu-item.danger:hover { background:rgba(255,95,95,.1); }
-    .lib-row-menu-divider { height:1px; background:var(--border); margin:4px 0; }
-
-    .lib-empty-state {
-      display:flex; flex-direction:column; align-items:center; gap:14px;
-      padding:80px 20px; color:var(--text-muted); text-align:center;
-    }
-    .lib-empty-icon { font-size:40px; }
-    .lib-empty-title { font-size:17px; font-weight:600; color:var(--text); }
-    .lib-empty-sub { font-size:13px; max-width:280px; line-height:1.6; }
+    .lib-empty-state{display:flex;flex-direction:column;align-items:center;gap:14px;
+      padding:80px 20px;color:var(--text-muted);text-align:center;}
+    .lib-empty-icon{font-size:40px;}
+    .lib-empty-title{font-size:17px;font-weight:600;color:var(--text);}
+    .lib-empty-sub{font-size:13px;max-width:280px;line-height:1.6;}
 
     /* FAB */
-    .lib-fab-wrap { position:fixed; bottom:28px; right:28px; z-index:60; }
-    .lib-fab {
-      width:56px; height:56px; border-radius:50%;
-      background:var(--accent); border:none; color:#fff;
-      cursor:pointer; display:flex; align-items:center; justify-content:center;
-      box-shadow:0 8px 24px rgba(124,107,255,.45);
-      transition:background .2s, transform .15s, box-shadow .2s;
-    }
-    .lib-fab:hover { background:#8d7dff; transform:scale(1.06); box-shadow:0 10px 30px rgba(124,107,255,.6); }
-    .lib-fab-menu {
-      position:absolute; bottom:calc(100% + 12px); right:0;
-      background:var(--surface); border:1px solid var(--border2);
-      border-radius:var(--radius); min-width:200px;
-      box-shadow:0 12px 40px rgba(0,0,0,.5); overflow:hidden;
-      opacity:0; pointer-events:none; transform:translateY(6px);
-      transition:opacity .15s,transform .15s;
-    }
-    .lib-fab-menu.open { opacity:1; pointer-events:all; transform:translateY(0); }
-    .lib-fab-menu-item {
-      display:flex; align-items:center; gap:10px; padding:13px 16px;
-      cursor:pointer; font-size:13px; font-weight:500; color:var(--text); transition:background .15s;
-    }
-    .lib-fab-menu-item:hover { background:var(--surface2); }
-    .lib-fab-menu-item svg { color:var(--accent); flex-shrink:0; }
+    .lib-fab-wrap{position:fixed;bottom:28px;right:28px;z-index:60;}
+    .lib-fab{width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;
+      cursor:pointer;display:flex;align-items:center;justify-content:center;
+      box-shadow:0 8px 24px rgba(124,107,255,.45);transition:background .2s,transform .15s,box-shadow .2s;}
+    .lib-fab:hover{background:#8d7dff;transform:scale(1.06);box-shadow:0 10px 30px rgba(124,107,255,.6);}
+    .lib-fab-menu{position:absolute;bottom:calc(100% + 12px);right:0;background:var(--surface);
+      border:1px solid var(--border2);border-radius:var(--radius);min-width:200px;
+      box-shadow:0 12px 40px rgba(0,0,0,.5);overflow:hidden;
+      opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .2s,transform .2s;}
+    .lib-fab-menu.open{opacity:1;pointer-events:all;transform:translateY(0);}
+    .lib-fab-menu-item{display:flex;align-items:center;gap:12px;padding:13px 16px;
+      cursor:pointer;font-size:14px;color:var(--text-muted);transition:background .15s;}
+    .lib-fab-menu-item:hover{background:var(--surface2);color:var(--text);}
 
-    /* Move-to picker modal */
-    .move-modal { max-width:380px; }
-    .move-list { max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:4px; }
-    .move-item {
-      display:flex; align-items:center; gap:10px; padding:10px 12px;
-      border-radius:var(--radius); cursor:pointer; transition:background .15s;
-      font-size:13px; color:var(--text); border:1px solid transparent;
-    }
-    .move-item:hover { background:var(--surface2); }
-    .move-item.current { border-color:var(--accent); background:var(--accent-dim); }
-    .move-item svg { color:var(--text-muted); flex-shrink:0; }
+    /* MOVE MODAL */
+    .move-modal{max-width:360px;}
+    .move-list{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;}
+    .move-item{display:flex;align-items:center;gap:10px;padding:11px 14px;
+      border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text-muted);
+      background:var(--surface2);border:1px solid var(--border);transition:border-color .15s,color .15s;}
+    .move-item:hover{border-color:var(--accent);color:var(--text);}
+    .move-item.current{opacity:.45;cursor:default;pointer-events:none;}
 
+    /* SPINNER */
+    .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);
+      border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+    @keyframes spin{to{transform:rotate(360deg)}}
 
-    /* Settings tabs */
-    .settings-tab {
-      flex:1; background:transparent; border:none; color:var(--text-muted);
-      padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12px;
-      font-weight:500; font-family:'Inter',sans-serif; transition:background .15s,color .15s;
-    }
-    .settings-tab:hover { background:var(--surface3); color:var(--text); }
-    .settings-tab.active { background:var(--surface); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.25); }
-    .settings-tab.danger-tab { color:var(--danger); }
-    .settings-tab.danger-tab.active { color:var(--danger); }
-
-    /* Spinner */
-    .spinner {
-      width:14px; height:14px; border:2px solid rgba(255,255,255,.25);
-      border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0;
-    }
-    @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* Toast */
-    .toast {
-      position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(8px);
-      background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius);
-      padding:10px 18px; font-size:13px; font-weight:500; z-index:3000;
-      box-shadow:0 8px 32px rgba(0,0,0,.4); opacity:0; pointer-events:none;
-      transition:opacity .25s,transform .25s;
-      display:flex; align-items:center; gap:8px; white-space:nowrap;
-    }
-    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-    .toast-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-    .toast.success .toast-dot { background:var(--success); }
-    .toast.error   .toast-dot { background:var(--danger); }
-    .toast.info    .toast-dot { background:var(--accent); }
+    /* TOAST */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);
+      background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);
+      padding:10px 18px;font-size:13px;font-weight:500;z-index:3000;
+      box-shadow:0 8px 32px rgba(0,0,0,.4);opacity:0;pointer-events:none;
+      transition:opacity .25s,transform .25s;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+    .toast-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+    .toast.success .toast-dot{background:var(--success);}
+    .toast.error   .toast-dot{background:var(--danger);}
+    .toast.info    .toast-dot{background:var(--accent);}
   </style>
 </head>
 <body>
 
-<!-- ── TOPBAR ── -->
+<!-- TOPBAR -->
 <div class="topbar" id="topbar">
   <div class="brand" id="brandHome">
     <div class="brand-icon">
@@ -428,7 +287,6 @@
     <span class="brand-name">CBZ Reader</span>
   </div>
 
-  <!-- Back button shown only when library page is open -->
   <button class="btn-ghost" id="libTopbarBack" style="display:none;gap:6px;align-items:center;">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M9 11.5L4 7l5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -439,14 +297,31 @@
   <span class="filename" id="filename"></span>
   <div class="topbar-spacer"></div>
 
+  <!-- Zoom controls — shown while reading -->
   <div class="zoom-group" id="zoomGroup" style="display:none">
-    <button id="zoomOut" title="Zoom out">−</button>
-    <button id="zoomReset" title="Reset zoom">100%</button>
-    <button id="zoomIn" title="Zoom in">+</button>
+    <button id="zoomOut">−</button>
+    <button id="zoomReset">100%</button>
+    <button id="zoomIn">+</button>
   </div>
   <div class="divider" id="zoomDivider" style="display:none"></div>
 
-  <!-- Always-available: Open file works with or without login -->
+  <!-- Prev/Next nav — shown when reading a cloud comic with siblings -->
+  <div class="zoom-group" id="navGroup" style="display:none">
+    <button id="prevComicBtn" title="Previous comic">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M9 11.5L4 7l5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span id="navLabel">1/1</span>
+    <button id="nextComicBtn" title="Next comic">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2.5L10 7l-5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+  <div class="divider" id="navDivider" style="display:none"></div>
+
+  <!-- Open file (always available) -->
   <div class="upload-wrap">
     <label for="fileInput">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -455,10 +330,10 @@
       </svg>
       Open file
     </label>
-    <input type="file" id="fileInput" accept=".cbz,.zip" />
+    <input type="file" id="fileInput" accept=".cbz,.zip"/>
   </div>
 
-  <!-- "Save to cloud" button — only shown while a comic is open -->
+  <!-- Save to cloud — shown after opening a local file -->
   <button class="btn-ghost" id="saveToCloudBtn" style="display:none">
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M3 9.5a2.5 2.5 0 0 1 .3-4.98A3.5 3.5 0 0 1 10 5.2a2.3 2.3 0 0 1-.4 4.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -468,13 +343,13 @@
 
   <div class="divider"></div>
 
-  <!-- Logged-out -->
+  <!-- Logged out -->
   <div id="authArea" style="display:flex;gap:8px;align-items:center;">
     <button class="btn-ghost" id="showLoginBtn">Sign in</button>
     <button class="btn-accent" id="showSignupBtn">Sign up free</button>
   </div>
 
-  <!-- Logged-in -->
+  <!-- Logged in -->
   <div id="loggedArea" style="display:none;gap:8px;align-items:center;">
     <button class="btn-ghost" id="openLibBtn">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -513,7 +388,7 @@
           </svg>
           Account Settings
         </div>
-        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+        <div class="menu-sep"></div>
         <div class="user-menu-item danger" id="menuLogout">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M5 12H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
@@ -526,23 +401,23 @@
   </div>
 </div>
 
-<!-- ── READER ── -->
+<!-- READER -->
 <div id="reader">
   <div class="state-wrapper">
     <div class="state-icon">📖</div>
     <div class="state-title">Welcome to CBZ Reader</div>
-    <div class="state-sub">Open a CBZ file to start reading right away — no account needed. Sign in if you want to save it to a cloud library you can access anywhere.</div>
+    <div class="state-sub">Open a CBZ file to start reading right away — no account needed. Sign in to save comics to your cloud library.</div>
   </div>
 </div>
 
-<!-- ── AUTH MODAL ── -->
+<!-- AUTH MODAL -->
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <button class="modal-close" id="authModalClose">✕</button>
     <h2 id="authTitle">Sign in</h2>
     <p class="modal-sub" id="authSub">Welcome back. Your library is waiting.</p>
     <div class="form-error" id="authError"></div>
-    <div class="form-info"  id="authInfo"></div>
+    <div class="form-info" id="authInfo"></div>
     <div class="field" id="nameField" style="display:none">
       <label>Name</label>
       <input type="text" id="authName" placeholder="Your name" autocomplete="name"/>
@@ -556,21 +431,21 @@
       <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password"/>
     </div>
     <button class="btn-primary" id="authSubmit">Sign in</button>
-    <div class="modal-switch" id="authSwitch">
-      Don't have an account? <a id="authToggle">Sign up</a>
+    <div class="modal-switch">
+      Don't have an account? <a id="authToggle">Sign up free</a>
     </div>
   </div>
 </div>
 
-<!-- ── LIBRARY FULL PAGE ── -->
-<div id="libraryPage" style="display:none; margin-top:58px;">
+<!-- LIBRARY PAGE -->
+<div id="libraryPage" style="display:none;margin-top:58px;">
   <div class="lib-page-topbar">
     <button class="lib-back" id="libBackBtn" style="display:none" title="Back">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <path d="M10 13L5 8l5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-    <div class="lib-breadcrumb" id="libBreadcrumb">Home</div>
+    <div class="lib-breadcrumb" id="libBreadcrumb"><span class="crumb-current">Home</span></div>
     <div class="lib-page-search-wrap">
       <input type="text" class="lib-search" id="libSearch" placeholder="Search your library…"/>
     </div>
@@ -585,7 +460,7 @@
   </div>
 
   <div class="lib-page-body">
-    <ul class="lib-list lib-list-page" id="libList"></ul>
+    <ul class="lib-list" id="libList"></ul>
   </div>
 
   <div class="lib-fab-wrap">
@@ -610,11 +485,10 @@
       </svg>
     </button>
   </div>
-
   <input type="file" id="libFileInput" accept=".cbz,.zip" multiple style="display:none"/>
 </div>
 
-<!-- ── NEW FOLDER MODAL ── -->
+<!-- NEW FOLDER MODAL -->
 <div class="modal-overlay" id="folderModal">
   <div class="modal move-modal">
     <button class="modal-close" id="folderModalClose">✕</button>
@@ -628,7 +502,7 @@
   </div>
 </div>
 
-<!-- ── MOVE TO MODAL ── -->
+<!-- MOVE TO MODAL -->
 <div class="modal-overlay" id="moveModal">
   <div class="modal move-modal">
     <button class="modal-close" id="moveModalClose">✕</button>
@@ -638,440 +512,493 @@
   </div>
 </div>
 
-
-<!-- ── TOAST ── -->
-<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
-
-<!-- ── ACCOUNT SETTINGS MODAL ── -->
+<!-- ACCOUNT SETTINGS MODAL -->
 <div class="modal-overlay" id="settingsModal">
   <div class="modal" style="max-width:460px">
     <button class="modal-close" id="settingsModalClose">✕</button>
     <h2>Account Settings</h2>
     <p class="modal-sub">Update your profile or manage your account.</p>
-
-    <!-- Tabs -->
     <div style="display:flex;gap:4px;background:var(--surface2);border-radius:10px;padding:4px;margin-bottom:24px;">
       <button class="settings-tab active" data-tab="profile">Profile</button>
       <button class="settings-tab" data-tab="password">Password</button>
       <button class="settings-tab danger-tab" data-tab="danger">Delete Account</button>
     </div>
-
-    <!-- Profile tab -->
-    <div class="settings-panel" id="tab-profile">
+    <div id="tab-profile">
       <div class="form-error" id="profileError"></div>
-      <div class="form-info"  id="profileInfo"></div>
-      <div class="field">
-        <label>Display Name</label>
-        <input type="text" id="settingsName" placeholder="Your name"/>
-      </div>
-      <div class="field">
-        <label>Email</label>
-        <input type="email" id="settingsEmail" placeholder="you@example.com"/>
-      </div>
+      <div class="form-info" id="profileInfo"></div>
+      <div class="field"><label>Display Name</label><input type="text" id="settingsName" placeholder="Your name"/></div>
+      <div class="field"><label>Email</label><input type="email" id="settingsEmail" placeholder="you@example.com"/></div>
       <button class="btn-primary" id="saveProfileBtn">Save changes</button>
     </div>
-
-    <!-- Password tab -->
-    <div class="settings-panel" id="tab-password" style="display:none">
+    <div id="tab-password" style="display:none">
       <div class="form-error" id="passwordError"></div>
-      <div class="form-info"  id="passwordInfo"></div>
-      <div class="field">
-        <label>New Password</label>
-        <input type="password" id="newPassword" placeholder="At least 6 characters"/>
-      </div>
-      <div class="field">
-        <label>Confirm New Password</label>
-        <input type="password" id="confirmPassword" placeholder="Repeat password"/>
-      </div>
+      <div class="form-info" id="passwordInfo"></div>
+      <div class="field"><label>New Password</label><input type="password" id="newPassword" placeholder="At least 6 characters"/></div>
+      <div class="field"><label>Confirm Password</label><input type="password" id="confirmPassword" placeholder="Repeat password"/></div>
       <button class="btn-primary" id="savePasswordBtn">Update password</button>
     </div>
-
-    <!-- Danger tab -->
-    <div class="settings-panel" id="tab-danger" style="display:none">
+    <div id="tab-danger" style="display:none">
       <div style="background:rgba(255,95,95,.07);border:1px solid rgba(255,95,95,.2);border-radius:var(--radius);padding:16px;margin-bottom:20px;">
         <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:6px;">⚠ Permanently delete account</div>
-        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">This will delete your account, all uploaded CBZ files, covers, and library data. This action <strong style="color:var(--text)">cannot be undone</strong>.</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">Deletes your account, all uploaded CBZ files and library data. <strong style="color:var(--text)">Cannot be undone.</strong></div>
       </div>
-      <div class="field">
-        <label>Type DELETE to confirm</label>
-        <input type="text" id="deleteConfirmInput" placeholder="DELETE"/>
-      </div>
+      <div class="field"><label>Type DELETE to confirm</label><input type="text" id="deleteConfirmInput" placeholder="DELETE"/></div>
       <div class="form-error" id="deleteError"></div>
-      <button class="btn-primary" id="deleteAccountBtn" style="background:var(--danger);box-shadow:none">Delete my account permanently</button>
+      <button class="btn-primary" id="deleteAccountBtn" style="background:var(--danger)">Delete my account permanently</button>
     </div>
   </div>
 </div>
 
-<!-- ── FILE INFO MODAL ── -->
+<!-- FILE INFO MODAL -->
 <div class="modal-overlay" id="fileInfoModal">
   <div class="modal" style="max-width:380px">
     <button class="modal-close" id="fileInfoModalClose">✕</button>
-    <h2 style="font-size:17px;margin-bottom:18px" id="fileInfoTitle">File Info</h2>
+    <h2 style="font-size:17px;margin-bottom:18px">File Info</h2>
     <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:20px">
-      <div style="width:56px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px" id="fileInfoThumb">📖</div>
+      <div id="fileInfoThumb" style="width:56px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;
+        background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;
+        justify-content:center;font-size:24px">📖</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px;word-break:break-word" id="fileInfoName"></div>
-        <div style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace" id="fileInfoSize"></div>
+        <div id="fileInfoName" style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px;word-break:break-word"></div>
+        <div id="fileInfoSize" style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace"></div>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)">
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="display:flex;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text-muted);font-weight:500">Uploaded on</span>
-        <span style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace" id="fileInfoDate"></span>
+        <span id="fileInfoDate" style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace"></span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text-muted);font-weight:500">Time (IST)</span>
-        <span style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace" id="fileInfoTime"></span>
+        <span id="fileInfoTime" style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace"></span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px">
+      <div style="display:flex;justify-content:space-between;padding:11px 14px">
         <span style="font-size:12px;color:var(--text-muted);font-weight:500">File size</span>
-        <span style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace" id="fileInfoSizeFull"></span>
+        <span id="fileInfoSizeFull" style="font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace"></span>
       </div>
     </div>
   </div>
 </div>
 
+<!-- TOAST -->
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
+
 <script>
-// ═══════════════════════════════════════════════════════════
-//  SUPABASE INIT
-// ═══════════════════════════════════════════════════════════
+// ── SUPABASE ──────────────────────────────────────────────
 const SUPABASE_URL = 'https://jimjjtrmislwdleueeyb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_yGE7cI31ZF26t_J2eye80A_VAs9DqBk';
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const BUCKET = 'cbz-files';
 
-// ═══════════════════════════════════════════════════════════
-//  TOAST
-// ═══════════════════════════════════════════════════════════
-let toastTimer;
-function showToast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.className = `toast ${type}`;
-  document.getElementById('toastMsg').textContent = msg;
-  clearTimeout(toastTimer);
-  t.classList.add('show');
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+// ── UTILS ─────────────────────────────────────────────────
+function escHtml(s=''){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function formatBytes(b){if(!b)return'—';if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';if(b<1073741824)return(b/1048576).toFixed(1)+'MB';return(b/1073741824).toFixed(1)+'GB';}
+function resizeBlob(blob,targetW=300){
+  const targetH=Math.round(targetW*1.5);
+  return new Promise(res=>{
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const sr=img.width/img.height,dr=targetW/targetH;
+        let sx,sy,sw,sh;
+        if(sr>dr){sh=img.height;sw=sh*dr;sx=(img.width-sw)/2;sy=0;}
+        else{sw=img.width;sh=sw/dr;sx=0;sy=0;}
+        const c=document.createElement('canvas');c.width=targetW;c.height=targetH;
+        const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+        ctx.drawImage(img,sx,sy,sw,sh,0,0,targetW,targetH);
+        c.toBlob(b=>res(b),'image/jpeg',.85);
+      };img.src=fr.result;
+    };fr.readAsDataURL(blob);
+  });
 }
 
-// ═══════════════════════════════════════════════════════════
-//  UI STATE
-// ═══════════════════════════════════════════════════════════
-let currentUser = null;
-let zoomLevel   = 1;
-let isSignup    = false;
-let currentFile = null;   // { file: File, name, fromCloud, comicId }
+// ── TOAST ─────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.className=`toast ${type}`;
+  document.getElementById('toastMsg').textContent=msg;
+  clearTimeout(toastTimer);t.classList.add('show');
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
 
-function setLoggedIn(user) {
-  currentUser = user;
-  const loggedIn = !!user;
-  document.getElementById('authArea').style.display    = loggedIn ? 'none'  : 'flex';
-  document.getElementById('loggedArea').style.display  = loggedIn ? 'flex'  : 'none';
-  if (loggedIn) {
-    const email    = user.email || '';
-    const name     = user.user_metadata?.name || email.split('@')[0] || 'User';
-    const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    document.getElementById('userAvatar').textContent   = initials;
-    document.getElementById('userChipName').textContent = name.split(' ')[0];
-    document.getElementById('menuName').textContent     = name;
-    document.getElementById('menuEmail').textContent    = email;
+// ── MODAL HELPERS ─────────────────────────────────────────
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);});
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(el=>closeModal(el.id));
+});
+
+// ── STATE ─────────────────────────────────────────────────
+let currentUser=null,zoomLevel=1,isSignup=false,currentFile=null;
+let comicPlaylist=[],comicPlaylistIndex=-1;
+
+function setLoggedIn(user){
+  currentUser=user;
+  const on=!!user;
+  document.getElementById('authArea').style.display   =on?'none':'flex';
+  document.getElementById('loggedArea').style.display =on?'flex':'none';
+  if(on){
+    const email=user.email||'';
+    const name=user.user_metadata?.name||email.split('@')[0]||'User';
+    const initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    document.getElementById('userAvatar').textContent  =initials;
+    document.getElementById('userChipName').textContent=name.split(' ')[0];
+    document.getElementById('menuName').textContent    =name;
+    document.getElementById('menuEmail').textContent   =email;
   }
   updateSaveButton();
-  if (!document.querySelector('.page')) showHomeState(loggedIn);
+  if(!document.querySelector('.page'))showHomeState(on);
 }
 
-function updateSaveButton() {
-  const btn = document.getElementById('saveToCloudBtn');
-  const hasOpenLocalFile = currentFile && !currentFile.fromCloud;
-  btn.style.display = hasOpenLocalFile ? 'flex' : 'none';
+function updateSaveButton(){
+  document.getElementById('saveToCloudBtn').style.display=(currentFile&&!currentFile.fromCloud)?'flex':'none';
 }
 
-function showHomeState(loggedIn) {
-  document.getElementById('reader').innerHTML =
-    `<div class="state-wrapper"><div class="state-icon">📖</div>
-     <div class="state-title">Welcome to CBZ Reader</div>
-     <div class="state-sub">Open a CBZ file to start reading right away — no account needed. ${loggedIn ? 'Open your saved comics from <b style=\'color:var(--text)\'>Library</b>, or upload a new one.' : 'Sign in if you want to save it to a cloud library you can access anywhere.'}</div></div>`;
+function showHomeState(loggedIn){
+  document.getElementById('reader').innerHTML=`<div class="state-wrapper">
+    <div class="state-icon">📖</div>
+    <div class="state-title">Welcome to CBZ Reader</div>
+    <div class="state-sub">Open a CBZ file to start reading — no account needed.${loggedIn?' Open saved comics from <b style="color:var(--text)">Library</b>.':' Sign in to save to your cloud library.'}</div>
+  </div>`;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  AUTH
-// ═══════════════════════════════════════════════════════════
-function openAuthModal(signup=false) {
-  setAuthMode(signup);
-  ['authEmail','authPassword','authName'].forEach(id => document.getElementById(id).value = '');
+function updateNavButtons(){
+  const show=comicPlaylist.length>1&&comicPlaylistIndex>=0;
+  document.getElementById('navGroup').style.display  =show?'flex':'none';
+  document.getElementById('navDivider').style.display=show?'block':'none';
+  if(show){
+    document.getElementById('navLabel').textContent=`${comicPlaylistIndex+1}/${comicPlaylist.length}`;
+    document.getElementById('prevComicBtn').style.opacity=comicPlaylistIndex===0?'0.3':'1';
+    document.getElementById('nextComicBtn').style.opacity=comicPlaylistIndex===comicPlaylist.length-1?'0.3':'1';
+  }
+}
+
+// ── TOPBAR SCROLL HIDE ────────────────────────────────────
+let lastY=0;
+window.addEventListener('scroll',()=>{
+  const y=window.scrollY;
+  document.getElementById('topbar').classList.toggle('hidden',y>80&&y>lastY);
+  lastY=y;
+});
+
+// ── BRAND HOME ────────────────────────────────────────────
+document.getElementById('brandHome').addEventListener('click',()=>{
+  if(document.getElementById('libraryPage').style.display!=='none'){hideLibraryPage();return;}
+  if(document.querySelector('.page')){
+    document.getElementById('reader').innerHTML='';
+    document.getElementById('filename').textContent='';
+    document.getElementById('zoomGroup').style.display='none';
+    document.getElementById('zoomDivider').style.display='none';
+    currentFile=null;comicPlaylist=[];comicPlaylistIndex=-1;
+    updateNavButtons();updateSaveButton();showHomeState(!!currentUser);
+  }
+});
+
+// ── AUTH ──────────────────────────────────────────────────
+function openAuthModal(signup=false){
+  isSignup=signup;setAuthMode(signup);
+  ['authEmail','authPassword','authName'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('authError').classList.remove('show');
   document.getElementById('authInfo').classList.remove('show');
   openModal('authModal');
-  setTimeout(() => document.getElementById('authEmail').focus(), 300);
+  setTimeout(()=>document.getElementById('authEmail').focus(),300);
 }
 
-function setAuthMode(signup) {
-  isSignup = signup;
-  document.getElementById('authTitle').textContent   = signup ? 'Create account'      : 'Sign in';
-  document.getElementById('authSub').textContent     = signup ? 'Start building your cloud library.' : 'Welcome back. Your library is waiting.';
-  document.getElementById('authSubmit').innerHTML    = signup ? 'Create account'      : 'Sign in';
-  document.getElementById('nameField').style.display = signup ? 'flex'               : 'none';
+function setAuthMode(signup){
+  isSignup=signup;
+  document.getElementById('authTitle').textContent  =signup?'Create account':'Sign in';
+  document.getElementById('authSub').textContent    =signup?'Start building your cloud library.':'Welcome back. Your library is waiting.';
+  document.getElementById('authSubmit').innerHTML   =signup?'Create account':'Sign in';
+  document.getElementById('nameField').style.display=signup?'flex':'none';
   document.getElementById('authError').classList.remove('show');
   document.getElementById('authInfo').classList.remove('show');
-  const sw = document.getElementById('authSwitch');
-  sw.innerHTML = signup
-    ? `Already have an account? <a id="authToggle">Sign in</a>`
-    : `Don't have an account? <a id="authToggle">Sign up free</a>`;
-  document.getElementById('authToggle').addEventListener('click', () => setAuthMode(!isSignup));
+  const sw=document.querySelector('.modal-switch');
+  sw.innerHTML=signup
+    ?`Already have an account? <a id="authToggle">Sign in</a>`
+    :`Don't have an account? <a id="authToggle">Sign up free</a>`;
+  document.getElementById('authToggle').addEventListener('click',()=>setAuthMode(!isSignup));
 }
 
-document.getElementById('showLoginBtn') .addEventListener('click', () => openAuthModal(false));
-document.getElementById('showSignupBtn').addEventListener('click', () => openAuthModal(true));
-document.getElementById('authModalClose').addEventListener('click', () => closeModal('authModal'));
-document.getElementById('authToggle')   .addEventListener('click', () => setAuthMode(!isSignup));
+document.getElementById('showLoginBtn') .addEventListener('click',()=>openAuthModal(false));
+document.getElementById('showSignupBtn').addEventListener('click',()=>openAuthModal(true));
+document.getElementById('authModalClose').addEventListener('click',()=>closeModal('authModal'));
+document.getElementById('authToggle')   .addEventListener('click',()=>setAuthMode(!isSignup));
 
-document.getElementById('authSubmit').addEventListener('click', async () => {
-  const email    = document.getElementById('authEmail').value.trim();
-  const password = document.getElementById('authPassword').value;
-  const name     = document.getElementById('authName').value.trim();
-  const errEl    = document.getElementById('authError');
-  const infoEl   = document.getElementById('authInfo');
-  const btn      = document.getElementById('authSubmit');
-  errEl.classList.remove('show');
-  infoEl.classList.remove('show');
-
-  if (!email || !password)       { errEl.textContent='Please fill in all fields.'; errEl.classList.add('show'); return; }
-  if (isSignup && !name)         { errEl.textContent='Please enter your name.';    errEl.classList.add('show'); return; }
-  if (password.length < 6)       { errEl.textContent='Password must be at least 6 characters.'; errEl.classList.add('show'); return; }
-
-  btn.disabled = true;
-  btn.innerHTML = `<div class="spinner"></div> ${isSignup ? 'Creating account…' : 'Signing in…'}`;
-
-  try {
-    if (isSignup) {
-      const { data, error } = await sb.auth.signUp({
-        email, password,
-        options: { data: { name } }
-      });
-      if (error) throw error;
-      // Supabase may require email confirmation
-      if (data.user && !data.session) {
-        infoEl.textContent = '✉️ Check your email to confirm your account, then sign in.';
-        infoEl.classList.add('show');
-        btn.innerHTML = 'Create account';
-        btn.disabled  = false;
-        setAuthMode(false);
-        return;
+document.getElementById('authSubmit').addEventListener('click',async()=>{
+  const email=document.getElementById('authEmail').value.trim();
+  const password=document.getElementById('authPassword').value;
+  const name=document.getElementById('authName').value.trim();
+  const errEl=document.getElementById('authError');
+  const infoEl=document.getElementById('authInfo');
+  const btn=document.getElementById('authSubmit');
+  errEl.classList.remove('show');infoEl.classList.remove('show');
+  if(!email||!password){errEl.textContent='Please fill in all fields.';errEl.classList.add('show');return;}
+  if(isSignup&&!name){errEl.textContent='Please enter your name.';errEl.classList.add('show');return;}
+  if(password.length<6){errEl.textContent='Password must be at least 6 characters.';errEl.classList.add('show');return;}
+  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> ${isSignup?'Creating account…':'Signing in…'}`;
+  try{
+    if(isSignup){
+      const{data,error}=await sb.auth.signUp({email,password,options:{data:{name}}});
+      if(error)throw error;
+      if(data.user&&!data.session){
+        infoEl.textContent='✉️ Check your email to confirm your account, then sign in.';
+        infoEl.classList.add('show');btn.innerHTML='Create account';btn.disabled=false;
+        setAuthMode(false);return;
       }
-      closeModal('authModal');
-      setLoggedIn(data.user);
-      showToast(`Welcome, ${name}! 🎉`);
-      if (currentFile && !currentFile.fromCloud) {
-        uploadToCloud(currentFile.file);
-        currentFile.fromCloud = true;
-        updateSaveButton();
-      }
-    } else {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      closeModal('authModal');
-      setLoggedIn(data.user);
-      const displayName = data.user.user_metadata?.name || data.user.email.split('@')[0];
-      showToast(`Welcome back, ${displayName}!`);
-      if (currentFile && !currentFile.fromCloud) {
-        uploadToCloud(currentFile.file);
-        currentFile.fromCloud = true;
-        updateSaveButton();
-      }
+      closeModal('authModal');setLoggedIn(data.user);showToast(`Welcome, ${name}! 🎉`);
+      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
+    }else{
+      const{data,error}=await sb.auth.signInWithPassword({email,password});
+      if(error)throw error;
+      closeModal('authModal');setLoggedIn(data.user);
+      showToast(`Welcome back, ${data.user.user_metadata?.name||data.user.email.split('@')[0]}!`);
+      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
     }
-  } catch(err) {
-    errEl.textContent = err.message || 'Something went wrong. Please try again.';
-    errEl.classList.add('show');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = isSignup ? 'Create account' : 'Sign in';
-  }
+  }catch(err){errEl.textContent=err.message||'Something went wrong.';errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.innerHTML=isSignup?'Create account':'Sign in';}
+});
+['authEmail','authPassword','authName'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('authSubmit').click();});
 });
 
-['authEmail','authPassword','authName'].forEach(id => {
-  document.getElementById(id).addEventListener('keydown', e => {
-    if (e.key==='Enter') document.getElementById('authSubmit').click();
-  });
+// ── USER MENU ─────────────────────────────────────────────
+document.getElementById('userChip').addEventListener('click',e=>{
+  e.stopPropagation();document.getElementById('userMenu').classList.toggle('open');
 });
+document.addEventListener('click',()=>document.getElementById('userMenu').classList.remove('open'));
 
-// ═══════════════════════════════════════════════════════════
-//  USER MENU
-// ═══════════════════════════════════════════════════════════
-document.getElementById('userChip').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('userMenu').classList.toggle('open');
-});
-document.addEventListener('click', () => document.getElementById('userMenu').classList.remove('open'));
-
-document.getElementById('menuLogout').addEventListener('click', async () => {
-  await sb.auth.signOut();
-  currentUser = null;
-  currentFile = null;
+document.getElementById('menuLogout').addEventListener('click',async()=>{
+  await sb.auth.signOut();currentUser=null;currentFile=null;
+  comicPlaylist=[];comicPlaylistIndex=-1;
   setLoggedIn(null);
-  document.getElementById('zoomGroup').style.display   = 'none';
-  document.getElementById('zoomDivider').style.display = 'none';
-  document.getElementById('filename').textContent = '';
-  document.getElementById('reader').innerHTML = '';
-  showHomeState(false);
-  showToast('Signed out.');
+  document.getElementById('zoomGroup').style.display='none';
+  document.getElementById('zoomDivider').style.display='none';
+  document.getElementById('navGroup').style.display='none';
+  document.getElementById('navDivider').style.display='none';
+  document.getElementById('filename').textContent='';
+  document.getElementById('reader').innerHTML='';
+  showHomeState(false);showToast('Signed out.');
 });
-document.getElementById('menuSettings').addEventListener('click', () => {
-  document.getElementById('userMenu').classList.remove('open');
-  openSettingsModal();
+document.getElementById('menuSettings').addEventListener('click',()=>{
+  document.getElementById('userMenu').classList.remove('open');openSettingsModal();
 });
-document.getElementById('menuLibrary').addEventListener('click', () => {
-  document.getElementById('userMenu').classList.remove('open');
-  openLibraryModal();
+document.getElementById('menuLibrary').addEventListener('click',()=>{
+  document.getElementById('userMenu').classList.remove('open');openLibraryPage();
 });
-document.getElementById('openLibBtn').addEventListener('click', openLibraryModal);
-document.getElementById('brandHome').addEventListener('click', () => {
-  if (document.querySelector('.page')) {
-    document.getElementById('reader').innerHTML = '';
-    document.getElementById('filename').textContent = '';
-    document.getElementById('zoomGroup').style.display   = 'none';
-    document.getElementById('zoomDivider').style.display = 'none';
-    currentFile = null;
-    updateSaveButton();
-    showHomeState(!!currentUser);
+document.getElementById('openLibBtn').addEventListener('click',openLibraryPage);
+
+// ── ZOOM ──────────────────────────────────────────────────
+function applyZoom(){
+  document.querySelectorAll('.page').forEach(img=>img.style.width=`${zoomLevel*100}%`);
+  document.getElementById('zoomReset').textContent=`${Math.round(zoomLevel*100)}%`;
+}
+document.getElementById('zoomIn')   .addEventListener('click',()=>{zoomLevel=Math.min(3,zoomLevel+.1);applyZoom();});
+document.getElementById('zoomOut')  .addEventListener('click',()=>{zoomLevel=Math.max(.2,zoomLevel-.1);applyZoom();});
+document.getElementById('zoomReset').addEventListener('click',()=>{zoomLevel=1;applyZoom();});
+window.addEventListener('wheel',e=>{
+  if(!e.ctrlKey)return;e.preventDefault();
+  zoomLevel=e.deltaY<0?Math.min(3,zoomLevel+.05):Math.max(.2,zoomLevel-.05);applyZoom();
+},{passive:false});
+
+// ── PREV / NEXT ───────────────────────────────────────────
+document.getElementById('prevComicBtn').addEventListener('click',async()=>{
+  if(comicPlaylistIndex<=0)return;
+  comicPlaylistIndex--;await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
+});
+document.getElementById('nextComicBtn').addEventListener('click',async()=>{
+  if(comicPlaylistIndex>=comicPlaylist.length-1)return;
+  comicPlaylistIndex++;await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
+});
+
+// ── FILE INPUT (topbar) ───────────────────────────────────
+document.getElementById('fileInput').addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;e.target.value='';
+  document.getElementById('filename').textContent=file.name;
+  currentFile={file,name:file.name,fromCloud:false};
+  updateSaveButton();await loadCBZFromFile(file);
+});
+
+document.getElementById('saveToCloudBtn').addEventListener('click',async()=>{
+  if(!currentFile||currentFile.fromCloud)return;
+  if(!currentUser){showToast('Sign in to save this comic to your library.','info');openAuthModal(true);return;}
+  await uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();
+});
+
+// ── READER ────────────────────────────────────────────────
+const pageObserver=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');pageObserver.unobserve(e.target);}});
+},{rootMargin:'200px'});
+
+async function loadCBZFromFile(file){
+  const readerEl=document.getElementById('reader');
+  document.getElementById('zoomGroup').style.display='flex';
+  document.getElementById('zoomDivider').style.display='block';
+  readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">⏳</div><div class="state-title">Loading…</div><div class="loading-bar-wrap"><div class="loading-bar"></div></div></div>`;
+  try{
+    const zip=await JSZip.loadAsync(file);
+    const imageFiles=Object.keys(zip.files)
+      .filter(n=>/\.(jpg|jpeg|png|webp)$/i.test(n))
+      .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+    if(imageFiles.length===0){
+      readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">🔍</div><div class="state-title">No images found</div><div class="state-sub">This archive doesn't contain any supported images.</div></div>`;
+      return;
+    }
+    readerEl.innerHTML='';
+    for(const name of imageFiles){
+      const blob=await zip.files[name].async('blob');
+      const url=URL.createObjectURL(blob);
+      const img=document.createElement('img');
+      img.src=url;img.className='page';img.loading='lazy';img.alt=name;
+      readerEl.appendChild(img);pageObserver.observe(img);
+    }
+    applyZoom();
+  }catch(err){
+    console.error(err);
+    readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">⚠️</div><div class="state-title">Couldn't open file</div><div class="state-sub">Make sure the file is a valid CBZ or ZIP archive.</div></div>`;
   }
-});
-
-// ═══════════════════════════════════════════════════════════
-//  LIBRARY  (folders + files, list view)
-// ═══════════════════════════════════════════════════════════
-let libCurrentFolderId = null;     // null = Home/root
-let libFolderPath      = [];       // [{id,name}, ...] breadcrumb trail
-let libSearchTerm      = '';
-
-function showLibraryPage() {
-  document.getElementById('reader').style.display      = 'none';
-  document.getElementById('libraryPage').style.display = 'block';
-  document.getElementById('libTopbarBack').style.display = 'flex';
-  document.getElementById('zoomGroup').style.display   = 'none';
-  document.getElementById('zoomDivider').style.display = 'none';
 }
 
-function hideLibraryPage() {
-  document.getElementById('libraryPage').style.display = 'none';
-  document.getElementById('reader').style.display      = '';
-  document.getElementById('libTopbarBack').style.display = 'none';
-  if (document.querySelector('.page')) {
-    document.getElementById('zoomGroup').style.display   = 'flex';
-    document.getElementById('zoomDivider').style.display = 'block';
-    document.getElementById('filename').textContent      = currentFile?.name || '';
+async function openComicFromCloud(comic,fromLibrary=true){
+  const idx=comicPlaylist.findIndex(c=>c.id===comic.id);
+  if(idx!==-1)comicPlaylistIndex=idx;
+  else if(fromLibrary){comicPlaylist=[comic];comicPlaylistIndex=0;}
+  document.getElementById('filename').textContent=comic.name;
+  document.getElementById('zoomGroup').style.display='flex';
+  document.getElementById('zoomDivider').style.display='block';
+  updateNavButtons();
+  currentFile={file:null,name:comic.name,fromCloud:true};updateSaveButton();
+  const readerEl=document.getElementById('reader');
+  readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">☁️</div><div class="state-title">Downloading…</div><div class="loading-bar-wrap"><div class="loading-bar"></div></div><div class="state-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace">${escHtml(comic.name)}</div></div>`;
+  try{
+    const{data:blob,error}=await sb.storage.from(BUCKET).download(comic.storage_path);
+    if(error)throw error;
+    await loadCBZFromFile(new File([blob],comic.name,{type:'application/zip'}));
+  }catch(err){
+    readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load file</div><div class="state-sub">${escHtml(err.message||'Download failed.')}</div></div>`;
   }
 }
 
-async function openLibraryModal() {
-  if (!currentUser) return;
-  libCurrentFolderId = null;
-  libFolderPath = [];
-  document.getElementById('libSearch').value = '';
-  libSearchTerm = '';
-  showLibraryPage();
-  await renderLibrary();
+// ── LIBRARY PAGE ──────────────────────────────────────────
+let libCurrentFolderId=null,libFolderPath=[],libSearchTerm='';
+
+function showLibraryPage(){
+  document.getElementById('reader').style.display     ='none';
+  document.getElementById('libraryPage').style.display='block';
+  document.getElementById('libTopbarBack').style.display='flex';
+  document.getElementById('zoomGroup').style.display  ='none';
+  document.getElementById('zoomDivider').style.display='none';
+}
+function hideLibraryPage(){
+  document.getElementById('libraryPage').style.display='none';
+  document.getElementById('reader').style.display     ='';
+  document.getElementById('libTopbarBack').style.display='none';
+  if(document.querySelector('.page')){
+    document.getElementById('zoomGroup').style.display  ='flex';
+    document.getElementById('zoomDivider').style.display='block';
+    document.getElementById('filename').textContent=currentFile?.name||'';
+  }
+}
+async function openLibraryPage(){
+  if(!currentUser)return;
+  libCurrentFolderId=null;libFolderPath=[];
+  document.getElementById('libSearch').value='';libSearchTerm='';
+  showLibraryPage();await renderLibrary();
 }
 
-document.getElementById('libTopbarBack').addEventListener('click', hideLibraryPage);
-
-document.getElementById('libSearch').addEventListener('input', async () => {
-  libSearchTerm = document.getElementById('libSearch').value.trim().toLowerCase();
+document.getElementById('libTopbarBack').addEventListener('click',hideLibraryPage);
+document.getElementById('libSearch').addEventListener('input',async()=>{
+  libSearchTerm=document.getElementById('libSearch').value.trim().toLowerCase();
   await renderLibrary();
 });
-
-document.getElementById('libBackBtn').addEventListener('click', async () => {
+document.getElementById('libBackBtn').addEventListener('click',async()=>{
   libFolderPath.pop();
-  libCurrentFolderId = libFolderPath.length ? libFolderPath[libFolderPath.length-1].id : null;
+  libCurrentFolderId=libFolderPath.length?libFolderPath[libFolderPath.length-1].id:null;
   await renderLibrary();
 });
 
-function renderBreadcrumb() {
-  const el = document.getElementById('libBreadcrumb');
-  const backBtn = document.getElementById('libBackBtn');
-  backBtn.style.display = libFolderPath.length ? 'flex' : 'none';
-
-  if (libFolderPath.length === 0) {
-    el.innerHTML = `<span class="crumb-current">Home</span>`;
-    return;
-  }
-  let html = `<span class="crumb-link" data-idx="-1">Home</span>`;
-  libFolderPath.forEach((f, i) => {
-    const isLast = i === libFolderPath.length - 1;
-    html += `<span class="crumb-sep">/</span>`;
-    html += isLast
-      ? `<span class="crumb-current">${escHtml(f.name)}</span>`
-      : `<span class="crumb-link" data-idx="${i}">${escHtml(f.name)}</span>`;
+function renderBreadcrumb(){
+  const el=document.getElementById('libBreadcrumb');
+  document.getElementById('libBackBtn').style.display=libFolderPath.length?'flex':'none';
+  if(libFolderPath.length===0){el.innerHTML=`<span class="crumb-current">Home</span>`;return;}
+  let html=`<span class="crumb-link" data-idx="-1">Home</span>`;
+  libFolderPath.forEach((f,i)=>{
+    html+=`<span class="crumb-sep">/</span>`;
+    html+=i===libFolderPath.length-1
+      ?`<span class="crumb-current">${escHtml(f.name)}</span>`
+      :`<span class="crumb-link" data-idx="${i}">${escHtml(f.name)}</span>`;
   });
-  el.innerHTML = html;
-  el.querySelectorAll('.crumb-link').forEach(c => {
-    c.addEventListener('click', async () => {
-      const idx = parseInt(c.dataset.idx, 10);
-      libFolderPath = idx === -1 ? [] : libFolderPath.slice(0, idx+1);
-      libCurrentFolderId = libFolderPath.length ? libFolderPath[libFolderPath.length-1].id : null;
+  el.innerHTML=html;
+  el.querySelectorAll('.crumb-link').forEach(c=>{
+    c.addEventListener('click',async()=>{
+      const idx=parseInt(c.dataset.idx,10);
+      libFolderPath=idx===-1?[]:libFolderPath.slice(0,idx+1);
+      libCurrentFolderId=libFolderPath.length?libFolderPath[libFolderPath.length-1].id:null;
       await renderLibrary();
     });
   });
 }
 
-async function renderLibrary() {
+async function renderLibrary(){
   renderBreadcrumb();
-  const list = document.getElementById('libList');
-  list.innerHTML = `<div class="lib-empty-state"><div class="lib-empty-icon">⏳</div><div class="lib-empty-title">Loading…</div></div>`;
+  const list=document.getElementById('libList');
+  list.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon">⏳</div><div class="lib-empty-title">Loading…</div></div>`;
 
-  // Fetch folders + files for current location (or search across everything)
-  let folders = [], files = [];
-
-  if (libSearchTerm) {
-    const [{ data: fAll }, { data: lAll }] = await Promise.all([
-      sb.from('folders').select('*').ilike('name', `%${libSearchTerm}%`),
-      sb.from('library').select('*').ilike('name', `%${libSearchTerm}%`),
+  let folders=[],files=[];
+  if(libSearchTerm){
+    const[{data:fAll},{data:lAll}]=await Promise.all([
+      sb.from('folders').select('*').ilike('name',`%${libSearchTerm}%`),
+      sb.from('library').select('*').ilike('name',`%${libSearchTerm}%`),
     ]);
-    folders = fAll || [];
-    files   = lAll || [];
-  } else {
-    const folderFilter = libCurrentFolderId
-      ? sb.from('folders').select('*').eq('parent_id', libCurrentFolderId)
-      : sb.from('folders').select('*').is('parent_id', null);
-    const fileFilter = libCurrentFolderId
-      ? sb.from('library').select('*').eq('folder_id', libCurrentFolderId)
-      : sb.from('library').select('*').is('folder_id', null);
-
-    const [{ data: fRes, error: fErr }, { data: lRes, error: lErr }] = await Promise.all([
-      folderFilter.order('name'),
-      fileFilter.order('added_at', { ascending:false }),
+    folders=fAll||[];files=lAll||[];
+  }else{
+    const folderQ=libCurrentFolderId
+      ?sb.from('folders').select('*').eq('parent_id',libCurrentFolderId)
+      :sb.from('folders').select('*').is('parent_id',null);
+    const fileQ=libCurrentFolderId
+      ?sb.from('library').select('*').eq('folder_id',libCurrentFolderId)
+      :sb.from('library').select('*').is('folder_id',null);
+    const[{data:fRes,error:fErr},{data:lRes,error:lErr}]=await Promise.all([
+      folderQ.order('name'),fileQ.order('added_at',{ascending:false}),
     ]);
-    if (fErr || lErr) {
-      list.innerHTML = `<div class="lib-empty-state"><div class="lib-empty-icon">⚠️</div><div class="lib-empty-title">Couldn't load library</div><div class="lib-empty-sub">${escHtml((fErr||lErr).message)}</div></div>`;
+    if(fErr||lErr){
+      list.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon">⚠️</div><div class="lib-empty-title">Couldn't load library</div><div class="lib-empty-sub">${escHtml((fErr||lErr).message)}</div></div>`;
       return;
     }
-    folders = fRes || [];
-    files   = lRes || [];
+    folders=fRes||[];files=lRes||[];
   }
 
-  if (folders.length === 0 && files.length === 0) {
-    list.innerHTML = `<div class="lib-empty-state">
-      <div class="lib-empty-icon">${libSearchTerm ? '🔍' : '📭'}</div>
-      <div class="lib-empty-title">${libSearchTerm ? 'No results' : 'This folder is empty'}</div>
-      <div class="lib-empty-sub">${libSearchTerm ? 'Try a different search.' : 'Tap the + button to add a folder or upload a CBZ.'}</div>
+  // Save playlist for prev/next navigation
+  comicPlaylist=files;
+  updateNavButtons();
+
+  if(folders.length===0&&files.length===0){
+    list.innerHTML=`<div class="lib-empty-state">
+      <div class="lib-empty-icon">${libSearchTerm?'🔍':'📭'}</div>
+      <div class="lib-empty-title">${libSearchTerm?'No results':'This folder is empty'}</div>
+      <div class="lib-empty-sub">${libSearchTerm?'Try a different search.':'Tap + to add a folder or upload a CBZ.'}</div>
     </div>`;
     return;
   }
 
-  // Refresh signed cover URLs for files with covers
-  await Promise.all(files.map(async comic => {
-    if (comic.cover_path) {
-      const { data: signed, error: signErr } = await sb.storage.from(BUCKET).createSignedUrl(comic.cover_path, 3600);
-      comic.cover_url = signErr ? null : signed?.signedUrl;
-    }
+  // Refresh signed cover URLs
+  await Promise.all(files.map(async comic=>{
+    if(comic.cover_path){
+      const{data:signed,error:sErr}=await sb.storage.from(BUCKET).createSignedUrl(comic.cover_path,3600);
+      comic.cover_url=sErr?null:signed?.signedUrl;
+    }else{comic.cover_url=null;}
   }));
 
-  list.innerHTML = '';
+  list.innerHTML='';
 
-  // Folders first
-  for (const folder of folders) {
-    const li = document.createElement('li');
-    li.className = 'lib-row';
-    li.innerHTML = `
+  // Folders
+  for(const folder of folders){
+    const li=document.createElement('li');li.className='lib-row';
+    li.innerHTML=`
       <div class="lib-row-icon folder">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M2 5a1 1 0 0 1 1-1h3.5l1.5 2h7a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
@@ -1083,7 +1010,9 @@ async function renderLibrary() {
       </div>
       <button class="lib-row-menu-btn" data-kind="folder" data-id="${folder.id}">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="3" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="13" r="1.3" fill="currentColor"/>
+          <circle cx="8" cy="3" r="1.3" fill="currentColor"/>
+          <circle cx="8" cy="8" r="1.3" fill="currentColor"/>
+          <circle cx="8" cy="13" r="1.3" fill="currentColor"/>
         </svg>
       </button>
       <div class="lib-row-menu" id="menu-folder-${folder.id}">
@@ -1097,25 +1026,22 @@ async function renderLibrary() {
           Delete folder
         </div>
       </div>`;
-
-    li.addEventListener('click', async (e) => {
-      if (e.target.closest('.lib-row-menu-btn') || e.target.closest('.lib-row-menu')) return;
-      libFolderPath.push({ id: folder.id, name: folder.name });
-      libCurrentFolderId = folder.id;
-      document.getElementById('libSearch').value = '';
-      libSearchTerm = '';
+    li.addEventListener('click',async e=>{
+      if(e.target.closest('.lib-row-menu-btn')||e.target.closest('.lib-row-menu'))return;
+      libFolderPath.push({id:folder.id,name:folder.name});
+      libCurrentFolderId=folder.id;
+      document.getElementById('libSearch').value='';libSearchTerm='';
       await renderLibrary();
     });
     list.appendChild(li);
   }
 
-  // Then files
-  for (const comic of files) {
-    const li = document.createElement('li');
-    li.className = 'lib-row';
-    li.innerHTML = `
+  // Files
+  for(const comic of files){
+    const li=document.createElement('li');li.className='lib-row';
+    li.innerHTML=`
       <div class="lib-row-icon">
-        ${comic.cover_url ? `<img src="${escHtml(comic.cover_url)}" alt="cover"/>` : '📖'}
+        ${comic.cover_url?`<img src="${escHtml(comic.cover_url)}" alt="cover"/>`:'📖'}
       </div>
       <div class="lib-row-body">
         <div class="lib-row-name">${escHtml(comic.name)}</div>
@@ -1123,7 +1049,9 @@ async function renderLibrary() {
       </div>
       <button class="lib-row-menu-btn" data-kind="file" data-id="${comic.id}">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="3" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="13" r="1.3" fill="currentColor"/>
+          <circle cx="8" cy="3" r="1.3" fill="currentColor"/>
+          <circle cx="8" cy="8" r="1.3" fill="currentColor"/>
+          <circle cx="8" cy="13" r="1.3" fill="currentColor"/>
         </svg>
       </button>
       <div class="lib-row-menu" id="menu-file-${comic.id}">
@@ -1141,633 +1069,294 @@ async function renderLibrary() {
           Delete
         </div>
       </div>`;
-
-    li.addEventListener('click', async (e) => {
-      if (e.target.closest('.lib-row-menu-btn') || e.target.closest('.lib-row-menu')) return;
-      hideLibraryPage();
-      await openComicFromCloud(comic);
+    li.addEventListener('click',async e=>{
+      if(e.target.closest('.lib-row-menu-btn')||e.target.closest('.lib-row-menu'))return;
+      hideLibraryPage();await openComicFromCloud(comic);
     });
     list.appendChild(li);
   }
 
-  // Wire up three-dot menus (delegated to each button to keep things simple)
-  list.querySelectorAll('.lib-row-menu-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
+  // Wire three-dot menus
+  list.querySelectorAll('.lib-row-menu-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
       e.stopPropagation();
-      const kind = btn.dataset.kind, id = btn.dataset.id;
-      const menu = document.getElementById(`menu-${kind}-${id}`);
-      const wasOpen = menu.classList.contains('open');
-      document.querySelectorAll('.lib-row-menu.open').forEach(m => m.classList.remove('open'));
-      if (!wasOpen) menu.classList.add('open');
+      const menu=document.getElementById(`menu-${btn.dataset.kind}-${btn.dataset.id}`);
+      const wasOpen=menu.classList.contains('open');
+      document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));
+      if(!wasOpen)menu.classList.add('open');
     });
   });
 
-  list.querySelectorAll('[data-action]').forEach(item => {
-    item.addEventListener('click', async e => {
+  list.querySelectorAll('[data-action]').forEach(item=>{
+    item.addEventListener('click',async e=>{
       e.stopPropagation();
-      const action = item.dataset.action, id = item.dataset.id;
-      document.querySelectorAll('.lib-row-menu.open').forEach(m => m.classList.remove('open'));
-
-      if (action === 'delete-folder') {
-        if (!confirm('Delete this folder and everything inside it? This cannot be undone.')) return;
-        await deleteFolderRecursive(id);
-        showToast('Folder deleted.');
-        await renderLibrary();
-      } else if (action === 'rename-folder') {
-        const folder = folders.find(f => f.id === id);
-        const newName = prompt('Rename folder:', folder?.name || '');
-        if (newName && newName.trim()) {
-          await sb.from('folders').update({ name: newName.trim() }).eq('id', id);
-          showToast('Folder renamed.');
-          await renderLibrary();
+      const{action,id}=item.dataset;
+      document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));
+      if(action==='delete-folder'){
+        if(!confirm('Delete this folder and everything inside it?'))return;
+        await deleteFolderRecursive(id);showToast('Folder deleted.');await renderLibrary();
+      }else if(action==='rename-folder'){
+        const folder=folders.find(f=>f.id===id);
+        const newName=prompt('Rename folder:',folder?.name||'');
+        if(newName&&newName.trim()){
+          await sb.from('folders').update({name:newName.trim()}).eq('id',id);
+          showToast('Folder renamed.');await renderLibrary();
         }
-      } else if (action === 'info-file') {
-        const comic = files.find(c => c.id === id);
-        openFileInfoModal(comic);
-      } else if (action === 'delete-file') {
-        const comic = files.find(c => c.id === id);
-        if (!confirm(`Delete "${comic.name}" from your library?`)) return;
+      }else if(action==='info-file'){
+        const comic=files.find(c=>c.id===id);if(comic)openFileInfoModal(comic);
+      }else if(action==='delete-file'){
+        const comic=files.find(c=>c.id===id);if(!comic)return;
+        if(!confirm(`Delete "${comic.name}"?`))return;
         await sb.storage.from(BUCKET).remove([comic.storage_path]);
-        if (comic.cover_path) await sb.storage.from(BUCKET).remove([comic.cover_path]);
-        await sb.from('library').delete().eq('id', id);
-        showToast('Deleted from library.');
-        await renderLibrary();
-      } else if (action === 'move-file') {
-        const comic = files.find(c => c.id === id);
-        await openMoveModal(comic);
+        if(comic.cover_path)await sb.storage.from(BUCKET).remove([comic.cover_path]);
+        await sb.from('library').delete().eq('id',id);
+        showToast('Deleted.');await renderLibrary();
+      }else if(action==='move-file'){
+        const comic=files.find(c=>c.id===id);if(comic)await openMoveModal(comic);
       }
     });
   });
 }
 
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.lib-row-menu-btn')) {
-    document.querySelectorAll('.lib-row-menu.open').forEach(m => m.classList.remove('open'));
-  }
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.lib-row-menu-btn'))
+    document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));
 });
 
-async function deleteFolderRecursive(folderId) {
-  // Delete child folders first (cascade handles DB, but storage files need manual cleanup)
-  const { data: childFolders } = await sb.from('folders').select('id').eq('parent_id', folderId);
-  for (const cf of (childFolders || [])) await deleteFolderRecursive(cf.id);
-
-  const { data: filesInFolder } = await sb.from('library').select('*').eq('folder_id', folderId);
-  for (const f of (filesInFolder || [])) {
+async function deleteFolderRecursive(folderId){
+  const{data:children}=await sb.from('folders').select('id').eq('parent_id',folderId);
+  for(const c of(children||[]))await deleteFolderRecursive(c.id);
+  const{data:filesIn}=await sb.from('library').select('*').eq('folder_id',folderId);
+  for(const f of(filesIn||[])){
     await sb.storage.from(BUCKET).remove([f.storage_path]);
-    if (f.cover_path) await sb.storage.from(BUCKET).remove([f.cover_path]);
+    if(f.cover_path)await sb.storage.from(BUCKET).remove([f.cover_path]);
   }
-  await sb.from('library').delete().eq('folder_id', folderId);
-  await sb.from('folders').delete().eq('id', folderId);
+  await sb.from('library').delete().eq('folder_id',folderId);
+  await sb.from('folders').delete().eq('id',folderId);
 }
 
-// ── FAB (+ button) ──
-document.getElementById('libFabBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('libFabMenu').classList.toggle('open');
+// FAB
+document.getElementById('libFabBtn').addEventListener('click',e=>{
+  e.stopPropagation();document.getElementById('libFabMenu').classList.toggle('open');
 });
-document.addEventListener('click', () => document.getElementById('libFabMenu').classList.remove('open'));
-
-document.getElementById('fabNewFolder').addEventListener('click', () => {
+document.addEventListener('click',()=>document.getElementById('libFabMenu').classList.remove('open'));
+document.getElementById('fabNewFolder').addEventListener('click',()=>{
   document.getElementById('libFabMenu').classList.remove('open');
-  document.getElementById('folderNameInput').value = '';
+  document.getElementById('folderNameInput').value='';
   openModal('folderModal');
-  setTimeout(() => document.getElementById('folderNameInput').focus(), 250);
+  setTimeout(()=>document.getElementById('folderNameInput').focus(),250);
 });
-document.getElementById('fabUpload').addEventListener('click', () => {
+document.getElementById('fabUpload').addEventListener('click',()=>{
   document.getElementById('libFabMenu').classList.remove('open');
   document.getElementById('libFileInput').click();
 });
 
-// ── New folder modal ──
-document.getElementById('folderModalClose').addEventListener('click', () => closeModal('folderModal'));
-document.getElementById('folderCreateBtn').addEventListener('click', async () => {
-  const name = document.getElementById('folderNameInput').value.trim();
-  if (!name) { showToast('Please enter a folder name.', 'error'); return; }
-  const { error } = await sb.from('folders').insert({
-    user_id: currentUser.id, name, parent_id: libCurrentFolderId,
-  });
-  if (error) { showToast(error.message, 'error'); return; }
-  closeModal('folderModal');
-  showToast(`Folder "${name}" created.`);
-  await renderLibrary();
+// New folder modal
+document.getElementById('folderModalClose').addEventListener('click',()=>closeModal('folderModal'));
+document.getElementById('folderCreateBtn').addEventListener('click',async()=>{
+  const name=document.getElementById('folderNameInput').value.trim();
+  if(!name){showToast('Please enter a folder name.','error');return;}
+  const{error}=await sb.from('folders').insert({user_id:currentUser.id,name,parent_id:libCurrentFolderId});
+  if(error){showToast(error.message,'error');return;}
+  closeModal('folderModal');showToast(`Folder "${name}" created.`);await renderLibrary();
 });
-document.getElementById('folderNameInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('folderCreateBtn').click();
+document.getElementById('folderNameInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter')document.getElementById('folderCreateBtn').click();
 });
 
-// ── Move-to modal ──
-let moveTargetComic = null;
-async function openMoveModal(comic) {
-  moveTargetComic = comic;
-  document.getElementById('moveModalSub').textContent = `Choose where to move "${comic.name}".`;
-  const moveList = document.getElementById('moveList');
-  moveList.innerHTML = `<div class="lib-empty-state" style="padding:24px"><div class="lib-empty-icon">⏳</div></div>`;
+// Move to modal
+let moveTargetComic=null;
+async function openMoveModal(comic){
+  moveTargetComic=comic;
+  document.getElementById('moveModalSub').textContent=`Choose where to move "${comic.name}".`;
+  const moveList=document.getElementById('moveList');
+  moveList.innerHTML=`<div class="lib-empty-state" style="padding:24px"><div class="lib-empty-icon">⏳</div></div>`;
   openModal('moveModal');
-
-  const { data: allFolders } = await sb.from('folders').select('*').order('name');
-  const folders = allFolders || [];
-
-  let html = `<div class="move-item ${!comic.folder_id ? 'current' : ''}" data-target="root">
+  const{data:allFolders}=await sb.from('folders').select('*').order('name');
+  const fList=allFolders||[];
+  let html=`<div class="move-item${!comic.folder_id?' current':''}" data-target="root">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l6-5 6 5M4 7v6h8V7" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-    Home ${!comic.folder_id ? '(current)' : ''}
+    Home${!comic.folder_id?' (current)':''}
   </div>`;
-  folders.forEach(f => {
-    html += `<div class="move-item ${comic.folder_id===f.id ? 'current':''}" data-target="${f.id}">
+  fList.forEach(f=>{
+    html+=`<div class="move-item${comic.folder_id===f.id?' current':''}" data-target="${f.id}">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5a1 1 0 0 1 1-1h3.5l1.5 2h6a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-      ${escHtml(f.name)} ${comic.folder_id===f.id ? '(current)' : ''}
+      ${escHtml(f.name)}${comic.folder_id===f.id?' (current)':''}
     </div>`;
   });
-  moveList.innerHTML = html;
-
-  moveList.querySelectorAll('.move-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const target = item.dataset.target;
-      const newFolderId = target === 'root' ? null : target;
-      if (newFolderId === comic.folder_id) { closeModal('moveModal'); return; }
-      await sb.from('library').update({ folder_id: newFolderId }).eq('id', comic.id);
-      closeModal('moveModal');
-      showToast(`Moved "${comic.name}".`);
-      await renderLibrary();
+  moveList.innerHTML=html;
+  moveList.querySelectorAll('.move-item').forEach(item=>{
+    item.addEventListener('click',async()=>{
+      const newFolderId=item.dataset.target==='root'?null:item.dataset.target;
+      if(newFolderId===comic.folder_id){closeModal('moveModal');return;}
+      await sb.from('library').update({folder_id:newFolderId}).eq('id',comic.id);
+      closeModal('moveModal');showToast(`Moved "${comic.name}".`);await renderLibrary();
     });
   });
 }
-document.getElementById('moveModalClose').addEventListener('click', () => closeModal('moveModal'));
+document.getElementById('moveModalClose').addEventListener('click',()=>closeModal('moveModal'));
 
-// ═══════════════════════════════════════════════════════════
-//  ACCOUNT SETTINGS
-// ═══════════════════════════════════════════════════════════
-function openSettingsModal() {
-  // Pre-fill current values
-  document.getElementById('settingsName').value  = currentUser?.user_metadata?.name || '';
-  document.getElementById('settingsEmail').value = currentUser?.email || '';
-  document.getElementById('newPassword').value   = '';
-  document.getElementById('confirmPassword').value = '';
-  document.getElementById('deleteConfirmInput').value = '';
-  ['profileError','profileInfo','passwordError','passwordInfo','deleteError'].forEach(id => {
-    document.getElementById(id).classList.remove('show');
-  });
-  // Switch to profile tab
-  activateSettingsTab('profile');
-  openModal('settingsModal');
-}
-
-function activateSettingsTab(tab) {
-  document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
-  document.getElementById(`tab-${tab}`).style.display = 'block';
-}
-
-document.querySelectorAll('.settings-tab').forEach(tab => {
-  tab.addEventListener('click', () => activateSettingsTab(tab.dataset.tab));
-});
-document.getElementById('settingsModalClose').addEventListener('click', () => closeModal('settingsModal'));
-
-// Save profile (name + email)
-document.getElementById('saveProfileBtn').addEventListener('click', async () => {
-  const name  = document.getElementById('settingsName').value.trim();
-  const email = document.getElementById('settingsEmail').value.trim();
-  const errEl = document.getElementById('profileError');
-  const infoEl = document.getElementById('profileInfo');
-  errEl.classList.remove('show'); infoEl.classList.remove('show');
-  if (!name || !email) { errEl.textContent = 'Name and email are required.'; errEl.classList.add('show'); return; }
-
-  const btn = document.getElementById('saveProfileBtn');
-  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Saving…`;
-
-  try {
-    const updates = {};
-    if (email !== currentUser.email) updates.email = email;
-    updates.data = { name };
-
-    const { data, error } = await sb.auth.updateUser(updates);
-    if (error) throw error;
-
-    // Refresh session
-    const { data: { user } } = await sb.auth.getUser();
-    currentUser = user;
-    setLoggedIn(user);
-
-    infoEl.textContent = email !== currentUser.email
-      ? 'Profile updated. Check your new email to confirm the change.'
-      : 'Profile updated successfully.';
-    infoEl.classList.add('show');
-    showToast('Profile updated.');
-  } catch(err) {
-    errEl.textContent = err.message || 'Failed to update profile.';
-    errEl.classList.add('show');
-  } finally {
-    btn.disabled = false; btn.innerHTML = 'Save changes';
-  }
-});
-
-// Update password
-document.getElementById('savePasswordBtn').addEventListener('click', async () => {
-  const newPw  = document.getElementById('newPassword').value;
-  const confPw = document.getElementById('confirmPassword').value;
-  const errEl  = document.getElementById('passwordError');
-  const infoEl = document.getElementById('passwordInfo');
-  errEl.classList.remove('show'); infoEl.classList.remove('show');
-
-  if (!newPw) { errEl.textContent = 'Please enter a new password.'; errEl.classList.add('show'); return; }
-  if (newPw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.classList.add('show'); return; }
-  if (newPw !== confPw) { errEl.textContent = 'Passwords do not match.'; errEl.classList.add('show'); return; }
-
-  const btn = document.getElementById('savePasswordBtn');
-  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Updating…`;
-
-  try {
-    const { error } = await sb.auth.updateUser({ password: newPw });
-    if (error) throw error;
-    document.getElementById('newPassword').value = '';
-    document.getElementById('confirmPassword').value = '';
-    infoEl.textContent = 'Password updated successfully.';
-    infoEl.classList.add('show');
-    showToast('Password updated.');
-  } catch(err) {
-    errEl.textContent = err.message || 'Failed to update password.';
-    errEl.classList.add('show');
-  } finally {
-    btn.disabled = false; btn.innerHTML = 'Update password';
-  }
-});
-
-// Delete account
-document.getElementById('deleteAccountBtn').addEventListener('click', async () => {
-  const confirm = document.getElementById('deleteConfirmInput').value.trim();
-  const errEl   = document.getElementById('deleteError');
-  errEl.classList.remove('show');
-  if (confirm !== 'DELETE') {
-    errEl.textContent = 'Please type DELETE (all caps) to confirm.';
-    errEl.classList.add('show'); return;
-  }
-
-  const btn = document.getElementById('deleteAccountBtn');
-  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Deleting…`;
-
-  try {
-    // Delete all storage files
-    const { data: comics } = await sb.from('library').select('storage_path, cover_path').eq('user_id', currentUser.id);
-    const paths = [];
-    for (const c of (comics || [])) {
-      if (c.storage_path) paths.push(c.storage_path);
-      if (c.cover_path)   paths.push(c.cover_path);
-    }
-    if (paths.length) await sb.storage.from(BUCKET).remove(paths);
-
-    // Delete DB rows (RLS cascades on folders/library via user_id)
-    await sb.from('library').delete().eq('user_id', currentUser.id);
-    await sb.from('folders').delete().eq('user_id', currentUser.id);
-
-    // Delete the auth user via Supabase edge function or admin — note: client-side delete requires
-    // Supabase "Allow users to delete their own account" to be enabled in Auth settings.
-    const { error } = await sb.rpc('delete_user');
-    if (error) throw new Error('Could not delete account. Ask your admin to enable user self-deletion in Supabase Auth settings.');
-
-    await sb.auth.signOut();
-    closeModal('settingsModal');
-    currentUser = null;
-    setLoggedIn(null);
-    showHomeState(false);
-    showToast('Account deleted. Goodbye.', 'info');
-  } catch(err) {
-    errEl.textContent = err.message || 'Failed to delete account.';
-    errEl.classList.add('show');
-    btn.disabled = false; btn.innerHTML = 'Delete my account permanently';
-  }
-});
-
-// ═══════════════════════════════════════════════════════════
-//  FILE INFO MODAL
-// ═══════════════════════════════════════════════════════════
-function openFileInfoModal(comic) {
-  document.getElementById('fileInfoTitle').textContent = 'File Info';
-  document.getElementById('fileInfoName').textContent  = comic.name;
-  document.getElementById('fileInfoSize').textContent  = formatBytes(comic.size);
-  document.getElementById('fileInfoSizeFull').textContent = formatBytes(comic.size);
-
-  // Cover thumb
-  const thumbEl = document.getElementById('fileInfoThumb');
-  thumbEl.innerHTML = comic.cover_url
-    ? `<img src="${escHtml(comic.cover_url)}" style="width:100%;height:100%;object-fit:cover" alt="cover"/>`
-    : '📖';
-
-  // Format added_at as IST
-  const raw = comic.added_at;
-  if (raw) {
-    const dt = new Date(raw);
-    const dateStr = dt.toLocaleDateString('en-IN', {
-      timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'
-    });
-    const timeStr = dt.toLocaleTimeString('en-IN', {
-      timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
-    });
-    document.getElementById('fileInfoDate').textContent = dateStr;
-    document.getElementById('fileInfoTime').textContent = timeStr.toUpperCase();
-  } else {
-    document.getElementById('fileInfoDate').textContent = '—';
-    document.getElementById('fileInfoTime').textContent = '—';
-  }
-
-  openModal('fileInfoModal');
-}
-document.getElementById('fileInfoModalClose').addEventListener('click', () => closeModal('fileInfoModal'));
-
-// ── Upload from library (via FAB) — supports multiple files ──
-document.getElementById('libFileInput').addEventListener('change', async e => {
-  const files = Array.from(e.target.files);
-  if (!files.length) return;
-  e.target.value = '';
-  const multi = files.length > 1;
-  for (let i = 0; i < files.length; i++) {
-    const label = multi ? `${i + 1} of ${files.length}` : null;
-    await uploadToCloud(files[i], libCurrentFolderId, label);
+// Library file upload
+document.getElementById('libFileInput').addEventListener('change',async e=>{
+  const files=Array.from(e.target.files);if(!files.length)return;e.target.value='';
+  const multi=files.length>1;
+  for(let i=0;i<files.length;i++){
+    await uploadToCloud(files[i],libCurrentFolderId,multi?`${i+1} of ${files.length}`:null);
   }
   await renderLibrary();
 });
 
-// ── Upload from topbar Open file — works with or without login ──
-document.getElementById('fileInput').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  e.target.value = '';
-  document.getElementById('filename').textContent = file.name;
-  currentFile = { file, name: file.name, fromCloud: false };
-  updateSaveButton();
-  await loadCBZFromFile(file);
-});
-
-// ── Save to cloud button (always saves to root) ──
-document.getElementById('saveToCloudBtn').addEventListener('click', async () => {
-  if (!currentFile || currentFile.fromCloud) return;
-  if (!currentUser) {
-    showToast('Sign in to save this comic to your library.', 'info');
-    openAuthModal(true);
-    return;
-  }
-  await uploadToCloud(currentFile.file, null);
-  currentFile.fromCloud = true;
-  updateSaveButton();
-});
-
-async function uploadToCloud(file, folderId = null, label = null) {
-  if (!currentUser) return;
-  const prog    = document.getElementById('libProgress');
-  const bar     = document.getElementById('libProgressBar');
-  const pName   = document.getElementById('libProgressName');
-  const pStatus = document.getElementById('libProgressStatus');
-
-  pName.textContent   = label ? `${label}  •  ${file.name}` : file.name;
-  pStatus.textContent = 'Extracting cover…';
-  bar.style.width     = '0%';
-  prog.classList.add('show');
-
-  try {
-    let coverUrl = null, coverPath = null;
-    bar.style.width = '10%';
-    try {
-      const zip  = await JSZip.loadAsync(file);
-      const imgs = Object.keys(zip.files)
-        .filter(n => /\.(jpg|jpeg|png|webp)$/i.test(n))
-        .sort((a,b) => a.localeCompare(b, undefined, { numeric:true, sensitivity:'base' }));
-      if (imgs.length > 0) {
-        const blob      = await zip.files[imgs[0]].async('blob');
-        const thumbBlob = await resizeBlob(blob, 300);
-        const thumbPath = `${currentUser.id}/covers/${Date.now()}_cover.jpg`;
-        const { error: uploadErr } = await sb.storage.from(BUCKET).upload(thumbPath, thumbBlob, { contentType:'image/jpeg', upsert:true });
-        if (!uploadErr) {
-          coverPath = thumbPath;
-          const { data: signed, error: signErr } = await sb.storage.from(BUCKET).createSignedUrl(thumbPath, 60*60*24*365);
-          if (!signErr) coverUrl = signed?.signedUrl || null;
+// Upload to cloud
+async function uploadToCloud(file,folderId=null,label=null){
+  if(!currentUser)return;
+  const prog=document.getElementById('libProgress');
+  const bar=document.getElementById('libProgressBar');
+  const pName=document.getElementById('libProgressName');
+  const pStatus=document.getElementById('libProgressStatus');
+  pName.textContent=label?`${label}  •  ${file.name}`:file.name;
+  pStatus.textContent='Extracting cover…';bar.style.width='0%';prog.classList.add('show');
+  try{
+    let coverUrl=null,coverPath=null;
+    bar.style.width='10%';
+    try{
+      const zip=await JSZip.loadAsync(file);
+      const imgs=Object.keys(zip.files).filter(n=>/\.(jpg|jpeg|png|webp)$/i.test(n))
+        .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+      if(imgs.length>0){
+        const blob=await zip.files[imgs[0]].async('blob');
+        const thumbBlob=await resizeBlob(blob,300);
+        const thumbPath=`${currentUser.id}/covers/${Date.now()}_cover.jpg`;
+        const{error:upErr}=await sb.storage.from(BUCKET).upload(thumbPath,thumbBlob,{contentType:'image/jpeg',upsert:true});
+        if(!upErr){
+          coverPath=thumbPath;
+          const{data:signed,error:sErr}=await sb.storage.from(BUCKET).createSignedUrl(thumbPath,60*60*24*365);
+          if(!sErr)coverUrl=signed?.signedUrl||null;
         }
       }
-    } catch(e) { /* cover extraction failed silently */ }
-
-    bar.style.width     = '30%';
-    pStatus.textContent = 'Uploading file…';
-
-    const storagePath = `${currentUser.id}/comics/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
-    const { error: uploadErr } = await sb.storage.from(BUCKET).upload(storagePath, file, {
-      contentType: 'application/zip', upsert: false,
+    }catch(e){}
+    bar.style.width='30%';pStatus.textContent='Uploading file…';
+    const storagePath=`${currentUser.id}/comics/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const{error:upErr}=await sb.storage.from(BUCKET).upload(storagePath,file,{contentType:'application/zip',upsert:false});
+    if(upErr)throw upErr;
+    bar.style.width='85%';pStatus.textContent='Saving to library…';
+    const{error:dbErr}=await sb.from('library').insert({
+      user_id:currentUser.id,name:file.name,size:file.size,
+      cover_url:coverUrl,cover_path:coverPath,storage_path:storagePath,folder_id:folderId,
     });
-    if (uploadErr) throw uploadErr;
-
-    bar.style.width = '85%';
-    pStatus.textContent = 'Saving to library…';
-
-    const { error: dbErr } = await sb.from('library').insert({
-      user_id:      currentUser.id,
-      name:         file.name,
-      size:         file.size,
-      cover_url:    coverUrl,
-      cover_path:   coverPath,
-      storage_path: storagePath,
-      folder_id:    folderId,
-    });
-    if (dbErr) throw dbErr;
-
-    bar.style.width     = '100%';
-    pStatus.textContent = 'Done!';
-    setTimeout(() => prog.classList.remove('show'), 1000);
-    showToast(`"${file.name}" saved to your library.`);
-  } catch(err) {
-    pStatus.textContent = 'Upload failed.';
-    bar.style.background = 'var(--danger)';
-    setTimeout(() => { prog.classList.remove('show'); bar.style.background = ''; }, 2000);
-    showToast(err.message || 'Upload failed.', 'error');
-    console.error(err);
+    if(dbErr)throw dbErr;
+    bar.style.width='100%';pStatus.textContent='Done!';
+    setTimeout(()=>prog.classList.remove('show'),1000);
+    showToast(`"${file.name}" saved.`);
+  }catch(err){
+    pStatus.textContent='Upload failed.';bar.style.background='var(--danger)';
+    setTimeout(()=>{prog.classList.remove('show');bar.style.background='';},2000);
+    showToast(err.message||'Upload failed.','error');console.error(err);
   }
 }
 
-async function openComicFromCloud(comic) {
-  document.getElementById('filename').textContent = comic.name;
-  document.getElementById('zoomGroup').style.display   = 'flex';
-  document.getElementById('zoomDivider').style.display = 'block';
-  currentFile = { file: null, name: comic.name, fromCloud: true };
-  updateSaveButton();
+// ── ACCOUNT SETTINGS ──────────────────────────────────────
+function openSettingsModal(){
+  document.getElementById('settingsName').value =currentUser?.user_metadata?.name||'';
+  document.getElementById('settingsEmail').value=currentUser?.email||'';
+  document.getElementById('newPassword').value='';
+  document.getElementById('confirmPassword').value='';
+  document.getElementById('deleteConfirmInput').value='';
+  ['profileError','profileInfo','passwordError','passwordInfo','deleteError'].forEach(id=>{
+    document.getElementById(id).classList.remove('show');
+  });
+  activateSettingsTab('profile');openModal('settingsModal');
+}
+function activateSettingsTab(tab){
+  document.querySelectorAll('.settings-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  ['profile','password','danger'].forEach(p=>document.getElementById(`tab-${p}`).style.display=p===tab?'block':'none');
+}
+document.querySelectorAll('.settings-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>activateSettingsTab(tab.dataset.tab));
+});
+document.getElementById('settingsModalClose').addEventListener('click',()=>closeModal('settingsModal'));
 
-  const readerEl = document.getElementById('reader');
-  readerEl.innerHTML = `<div class="state-wrapper">
-    <div class="state-icon">☁️</div>
-    <div class="state-title">Downloading…</div>
-    <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
-    <div class="state-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace">${escHtml(comic.name)}</div>
-  </div>`;
+document.getElementById('saveProfileBtn').addEventListener('click',async()=>{
+  const name=document.getElementById('settingsName').value.trim();
+  const email=document.getElementById('settingsEmail').value.trim();
+  const errEl=document.getElementById('profileError');const infoEl=document.getElementById('profileInfo');
+  errEl.classList.remove('show');infoEl.classList.remove('show');
+  if(!name||!email){errEl.textContent='Name and email are required.';errEl.classList.add('show');return;}
+  const btn=document.getElementById('saveProfileBtn');
+  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> Saving…`;
+  try{
+    const updates={data:{name}};if(email!==currentUser.email)updates.email=email;
+    const{error}=await sb.auth.updateUser(updates);if(error)throw error;
+    const{data:{user}}=await sb.auth.getUser();currentUser=user;setLoggedIn(user);
+    infoEl.textContent='Profile updated successfully.';infoEl.classList.add('show');showToast('Profile updated.');
+  }catch(err){errEl.textContent=err.message||'Failed to update profile.';errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.innerHTML='Save changes';}
+});
 
-  try {
-    const { data: blob, error } = await sb.storage.from(BUCKET).download(comic.storage_path);
-    if (error) throw error;
-    const file = new File([blob], comic.name, { type: 'application/zip' });
-    await loadCBZFromFile(file);
-  } catch(err) {
-    readerEl.innerHTML = `<div class="state-wrapper">
-      <div class="state-icon">⚠️</div>
-      <div class="state-title">Couldn't load file</div>
-      <div class="state-sub">${escHtml(err.message || 'Download failed.')}</div>
-    </div>`;
+document.getElementById('savePasswordBtn').addEventListener('click',async()=>{
+  const newPw=document.getElementById('newPassword').value;
+  const confPw=document.getElementById('confirmPassword').value;
+  const errEl=document.getElementById('passwordError');const infoEl=document.getElementById('passwordInfo');
+  errEl.classList.remove('show');infoEl.classList.remove('show');
+  if(!newPw){errEl.textContent='Please enter a new password.';errEl.classList.add('show');return;}
+  if(newPw.length<6){errEl.textContent='Password must be at least 6 characters.';errEl.classList.add('show');return;}
+  if(newPw!==confPw){errEl.textContent='Passwords do not match.';errEl.classList.add('show');return;}
+  const btn=document.getElementById('savePasswordBtn');
+  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> Updating…`;
+  try{
+    const{error}=await sb.auth.updateUser({password:newPw});if(error)throw error;
+    document.getElementById('newPassword').value='';document.getElementById('confirmPassword').value='';
+    infoEl.textContent='Password updated.';infoEl.classList.add('show');showToast('Password updated.');
+  }catch(err){errEl.textContent=err.message||'Failed.';errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.innerHTML='Update password';}
+});
+
+document.getElementById('deleteAccountBtn').addEventListener('click',async()=>{
+  const val=document.getElementById('deleteConfirmInput').value.trim();
+  const errEl=document.getElementById('deleteError');errEl.classList.remove('show');
+  if(val!=='DELETE'){errEl.textContent='Please type DELETE (all caps) to confirm.';errEl.classList.add('show');return;}
+  const btn=document.getElementById('deleteAccountBtn');
+  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> Deleting…`;
+  try{
+    const{data:comics}=await sb.from('library').select('storage_path,cover_path');
+    const paths=[];
+    for(const c of(comics||[])){if(c.storage_path)paths.push(c.storage_path);if(c.cover_path)paths.push(c.cover_path);}
+    if(paths.length)await sb.storage.from(BUCKET).remove(paths);
+    await sb.from('library').delete().eq('user_id',currentUser.id);
+    await sb.from('folders').delete().eq('user_id',currentUser.id);
+    const{error}=await sb.rpc('delete_user');
+    if(error)throw new Error('Could not delete account. Run the delete_user SQL function in your Supabase dashboard first.');
+    await sb.auth.signOut();closeModal('settingsModal');
+    currentUser=null;setLoggedIn(null);showHomeState(false);showToast('Account deleted.','info');
+  }catch(err){
+    errEl.textContent=err.message||'Failed.';errEl.classList.add('show');
+    btn.disabled=false;btn.innerHTML='Delete my account permanently';
   }
-}
+});
 
-
-// ═══════════════════════════════════════════════════════════
-//  READER
-// ═══════════════════════════════════════════════════════════
-const pageObserver = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('visible'); pageObserver.unobserve(e.target); }
-  });
-}, { rootMargin: '200px' });
-
-async function loadCBZFromFile(file) {
-  const readerEl = document.getElementById('reader');
-  document.getElementById('zoomGroup').style.display   = 'flex';
-  document.getElementById('zoomDivider').style.display = 'block';
-
-  readerEl.innerHTML = `<div class="state-wrapper">
-    <div class="state-icon">⏳</div>
-    <div class="state-title">Loading…</div>
-    <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
-  </div>`;
-
-  try {
-    const zip = await JSZip.loadAsync(file);
-    const imageFiles = Object.keys(zip.files)
-      .filter(n => /\.(jpg|jpeg|png|webp)$/i.test(n))
-      .sort((a,b) => a.localeCompare(b, undefined, { numeric:true, sensitivity:'base' }));
-
-    if (imageFiles.length === 0) {
-      readerEl.innerHTML = `<div class="state-wrapper">
-        <div class="state-icon">🔍</div>
-        <div class="state-title">No images found</div>
-        <div class="state-sub">This archive doesn't contain any supported images.</div>
-      </div>`; return;
-    }
-
-    readerEl.innerHTML = '';
-    for (const name of imageFiles) {
-      const blob = await zip.files[name].async('blob');
-      const url  = URL.createObjectURL(blob);
-      const img  = document.createElement('img');
-      img.src = url; img.className = 'page'; img.loading = 'lazy'; img.alt = name;
-      readerEl.appendChild(img);
-      pageObserver.observe(img);
-    }
-    applyZoom();
-  } catch(err) {
-    console.error(err);
-    readerEl.innerHTML = `<div class="state-wrapper">
-      <div class="state-icon">⚠️</div>
-      <div class="state-title">Couldn't open file</div>
-      <div class="state-sub">Make sure the file is a valid CBZ or ZIP archive.</div>
-    </div>`;
+// ── FILE INFO ─────────────────────────────────────────────
+function openFileInfoModal(comic){
+  document.getElementById('fileInfoName').textContent    =comic.name;
+  document.getElementById('fileInfoSize').textContent    =formatBytes(comic.size);
+  document.getElementById('fileInfoSizeFull').textContent=formatBytes(comic.size);
+  const thumbEl=document.getElementById('fileInfoThumb');
+  thumbEl.innerHTML=comic.cover_url?`<img src="${escHtml(comic.cover_url)}" style="width:100%;height:100%;object-fit:cover" alt="cover"/>`:'📖';
+  if(comic.added_at){
+    const dt=new Date(comic.added_at);
+    document.getElementById('fileInfoDate').textContent=dt.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
+    document.getElementById('fileInfoTime').textContent=dt.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase();
+  }else{
+    document.getElementById('fileInfoDate').textContent='—';
+    document.getElementById('fileInfoTime').textContent='—';
   }
+  openModal('fileInfoModal');
 }
+document.getElementById('fileInfoModalClose').addEventListener('click',()=>closeModal('fileInfoModal'));
 
-// ═══════════════════════════════════════════════════════════
-//  ZOOM
-// ═══════════════════════════════════════════════════════════
-function applyZoom() {
-  document.querySelectorAll('.page').forEach(img => img.style.width = `${zoomLevel*100}%`);
-  document.getElementById('zoomReset').textContent = `${Math.round(zoomLevel*100)}%`;
-}
-document.getElementById('zoomIn')   .addEventListener('click', () => { zoomLevel=Math.min(3,zoomLevel+.1); applyZoom(); });
-document.getElementById('zoomOut')  .addEventListener('click', () => { zoomLevel=Math.max(.2,zoomLevel-.1); applyZoom(); });
-document.getElementById('zoomReset').addEventListener('click', () => { zoomLevel=1; applyZoom(); });
-window.addEventListener('wheel', e => {
-  if (!e.ctrlKey) return; e.preventDefault();
-  zoomLevel = e.deltaY<0 ? Math.min(3,zoomLevel+.05) : Math.max(.2,zoomLevel-.05);
-  applyZoom();
-}, { passive:false });
-
-// ═══════════════════════════════════════════════════════════
-//  TOPBAR SCROLL HIDE
-// ═══════════════════════════════════════════════════════════
-let lastY=0;
-window.addEventListener('scroll', () => {
-  const y = window.scrollY;
-  document.getElementById('topbar').classList.toggle('hidden', y>80 && y>lastY);
-  lastY = y;
-});
-
-// ═══════════════════════════════════════════════════════════
-//  MODAL HELPERS
-// ═══════════════════════════════════════════════════════════
-function openModal(id)  { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.modal-overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target===el) closeModal(el.id); });
-});
-document.addEventListener('keydown', e => {
-  if (e.key==='Escape')
-    document.querySelectorAll('.modal-overlay.open').forEach(el => closeModal(el.id));
-});
-
-// ═══════════════════════════════════════════════════════════
-//  UTILS
-// ═══════════════════════════════════════════════════════════
-function escHtml(s='') {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function formatBytes(b) {
-  if (!b) return '—';
-  if (b<1024)      return b+'B';
-  if (b<1048576)   return (b/1024).toFixed(1)+'KB';
-  if (b<1073741824)return (b/1048576).toFixed(1)+'MB';
-  return (b/1073741824).toFixed(1)+'GB';
-}
-function resizeBlob(blob, targetW=400) {
-  // Produces a sharp cover-cropped JPEG at a fixed 2:3 aspect ratio (matches the card),
-  // similar to CSS object-fit: cover — so it always looks crisp regardless of source size.
-  const targetH = Math.round(targetW * 1.5);
-  return new Promise(res => {
-    const fr = new FileReader();
-    fr.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const srcRatio = img.width / img.height;
-        const dstRatio = targetW / targetH;
-
-        let sx, sy, sw, sh;
-        if (srcRatio > dstRatio) {
-          // source is wider than target -> crop sides
-          sh = img.height;
-          sw = sh * dstRatio;
-          sx = (img.width - sw) / 2;
-          sy = 0;
-        } else {
-          // source is taller than target -> crop top/bottom
-          sw = img.width;
-          sh = sw / dstRatio;
-          sx = 0;
-          sy = 0; // anchor to top (covers are usually at the top of the first page)
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width  = targetW;
-        canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
-        canvas.toBlob(b => res(b), 'image/jpeg', 0.85);
-      };
-      img.src = fr.result;
-    };
-    fr.readAsDataURL(blob);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════
-//  INIT — restore session
-// ═══════════════════════════════════════════════════════════
-(async () => {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) setLoggedIn(session.user);
-  else               setLoggedIn(null);
-
-  // Listen for auth changes (e.g. email confirmation redirect)
-  sb.auth.onAuthStateChange((_event, session) => {
-    setLoggedIn(session?.user || null);
-  });
+// ── INIT ──────────────────────────────────────────────────
+(async()=>{
+  const{data:{session}}=await sb.auth.getSession();
+  setLoggedIn(session?.user||null);
+  sb.auth.onAuthStateChange((_,session)=>setLoggedIn(session?.user||null));
 })();
 </script>
 </body>
