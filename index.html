@@ -48,7 +48,8 @@
     #zoomReset{font-size:12px!important;font-weight:500;font-family:'JetBrains Mono',monospace!important;
       width:52px!important;color:var(--text)!important;letter-spacing:-.03em;}
     #navLabel{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);
-      padding:0 4px;min-width:38px;text-align:center;user-select:none;}
+      padding:0 6px;min-width:52px;text-align:center;user-select:none;cursor:default;
+      white-space:nowrap;}
 
     /* BUTTONS */
     .btn-ghost{display:flex;align-items:center;gap:6px;background:var(--surface);
@@ -321,26 +322,6 @@
   </div>
   <div class="divider" id="navDivider" style="display:none"></div>
 
-  <!-- Open file (always available) -->
-  <div class="upload-wrap">
-    <label for="fileInput">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-        <path d="M6.5 1v8M3.5 4l3-3 3 3" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M1 10.5h11" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
-      </svg>
-      Open file
-    </label>
-    <input type="file" id="fileInput" accept=".cbz,.zip"/>
-  </div>
-
-  <!-- Save to cloud — shown after opening a local file -->
-  <button class="btn-ghost" id="saveToCloudBtn" style="display:none">
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M3 9.5a2.5 2.5 0 0 1 .3-4.98A3.5 3.5 0 0 1 10 5.2a2.3 2.3 0 0 1-.4 4.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    Save to cloud
-  </button>
-
   <div class="divider"></div>
 
   <!-- Logged out -->
@@ -406,7 +387,7 @@
   <div class="state-wrapper">
     <div class="state-icon">📖</div>
     <div class="state-title">Welcome to CBZ Reader</div>
-    <div class="state-sub">Open a CBZ file to start reading right away — no account needed. Sign in to save comics to your cloud library.</div>
+    <div class="state-sub">Sign in to access your cloud library and start reading.</div>
   </div>
 </div>
 
@@ -634,7 +615,7 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── STATE ─────────────────────────────────────────────────
-let currentUser=null,zoomLevel=1,isSignup=false,currentFile=null;
+let currentUser=null,zoomLevel=1,isSignup=false;
 let comicPlaylist=[],comicPlaylistIndex=-1;
 
 function setLoggedIn(user){
@@ -651,12 +632,25 @@ function setLoggedIn(user){
     document.getElementById('menuName').textContent    =name;
     document.getElementById('menuEmail').textContent   =email;
   }
-  updateSaveButton();
+  updateNavButtons();
   if(!document.querySelector('.page'))showHomeState(on);
 }
 
-function updateSaveButton(){
-  document.getElementById('saveToCloudBtn').style.display=(currentFile&&!currentFile.fromCloud)?'flex':'none';
+function updateNavButtons(){
+  const show = comicPlaylist.length > 1 && comicPlaylistIndex >= 0;
+  document.getElementById('navGroup').style.display   = show ? 'flex'  : 'none';
+  document.getElementById('navDivider').style.display = show ? 'block' : 'none';
+  if (show) {
+    // Show current chapter name in the label for clarity
+    const current = comicPlaylist[comicPlaylistIndex];
+    const name    = current ? current.name.replace(/\.cbz$/i,'').replace(/\.zip$/i,'') : '';
+    document.getElementById('navLabel').textContent = `${comicPlaylistIndex+1} / ${comicPlaylist.length}`;
+    document.getElementById('navLabel').title = name;
+    document.getElementById('prevComicBtn').style.opacity = comicPlaylistIndex === 0                          ? '0.35' : '1';
+    document.getElementById('nextComicBtn').style.opacity = comicPlaylistIndex === comicPlaylist.length - 1  ? '0.35' : '1';
+    document.getElementById('prevComicBtn').disabled = comicPlaylistIndex === 0;
+    document.getElementById('nextComicBtn').disabled = comicPlaylistIndex === comicPlaylist.length - 1;
+  }
 }
 
 function showHomeState(loggedIn){
@@ -665,17 +659,6 @@ function showHomeState(loggedIn){
     <div class="state-title">Welcome to CBZ Reader</div>
     <div class="state-sub">Open a CBZ file to start reading — no account needed.${loggedIn?' Open saved comics from <b style="color:var(--text)">Library</b>.':' Sign in to save to your cloud library.'}</div>
   </div>`;
-}
-
-function updateNavButtons(){
-  const show=comicPlaylist.length>1&&comicPlaylistIndex>=0;
-  document.getElementById('navGroup').style.display  =show?'flex':'none';
-  document.getElementById('navDivider').style.display=show?'block':'none';
-  if(show){
-    document.getElementById('navLabel').textContent=`${comicPlaylistIndex+1}/${comicPlaylist.length}`;
-    document.getElementById('prevComicBtn').style.opacity=comicPlaylistIndex===0?'0.3':'1';
-    document.getElementById('nextComicBtn').style.opacity=comicPlaylistIndex===comicPlaylist.length-1?'0.3':'1';
-  }
 }
 
 // ── TOPBAR SCROLL HIDE ────────────────────────────────────
@@ -694,8 +677,8 @@ document.getElementById('brandHome').addEventListener('click',()=>{
     document.getElementById('filename').textContent='';
     document.getElementById('zoomGroup').style.display='none';
     document.getElementById('zoomDivider').style.display='none';
-    currentFile=null;comicPlaylist=[];comicPlaylistIndex=-1;
-    updateNavButtons();updateSaveButton();showHomeState(!!currentUser);
+    comicPlaylist=[];comicPlaylistIndex=-1;
+    updateNavButtons();showHomeState(!!currentUser);
   }
 });
 
@@ -751,13 +734,11 @@ document.getElementById('authSubmit').addEventListener('click',async()=>{
         setAuthMode(false);return;
       }
       closeModal('authModal');setLoggedIn(data.user);showToast(`Welcome, ${name}! 🎉`);
-      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
     }else{
       const{data,error}=await sb.auth.signInWithPassword({email,password});
       if(error)throw error;
       closeModal('authModal');setLoggedIn(data.user);
       showToast(`Welcome back, ${data.user.user_metadata?.name||data.user.email.split('@')[0]}!`);
-      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
     }
   }catch(err){errEl.textContent=err.message||'Something went wrong.';errEl.classList.add('show');}
   finally{btn.disabled=false;btn.innerHTML=isSignup?'Create account':'Sign in';}
@@ -773,7 +754,7 @@ document.getElementById('userChip').addEventListener('click',e=>{
 document.addEventListener('click',()=>document.getElementById('userMenu').classList.remove('open'));
 
 document.getElementById('menuLogout').addEventListener('click',async()=>{
-  await sb.auth.signOut();currentUser=null;currentFile=null;
+  await sb.auth.signOut();currentUser=null;
   comicPlaylist=[];comicPlaylistIndex=-1;
   setLoggedIn(null);
   document.getElementById('zoomGroup').style.display='none';
@@ -815,20 +796,6 @@ document.getElementById('nextComicBtn').addEventListener('click',async()=>{
   comicPlaylistIndex++;await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
 });
 
-// ── FILE INPUT (topbar) ───────────────────────────────────
-document.getElementById('fileInput').addEventListener('change',async e=>{
-  const file=e.target.files[0];if(!file)return;e.target.value='';
-  document.getElementById('filename').textContent=file.name;
-  currentFile={file,name:file.name,fromCloud:false};
-  updateSaveButton();await loadCBZFromFile(file);
-});
-
-document.getElementById('saveToCloudBtn').addEventListener('click',async()=>{
-  if(!currentFile||currentFile.fromCloud)return;
-  if(!currentUser){showToast('Sign in to save this comic to your library.','info');openAuthModal(true);return;}
-  await uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();
-});
-
 // ── READER ────────────────────────────────────────────────
 const pageObserver=new IntersectionObserver(entries=>{
   entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');pageObserver.unobserve(e.target);}});
@@ -863,15 +830,22 @@ async function loadCBZFromFile(file){
   }
 }
 
-async function openComicFromCloud(comic,fromLibrary=true){
-  const idx=comicPlaylist.findIndex(c=>c.id===comic.id);
-  if(idx!==-1)comicPlaylistIndex=idx;
-  else if(fromLibrary){comicPlaylist=[comic];comicPlaylistIndex=0;}
+async function openComicFromCloud(comic, fromLibrary=true){
+  // If comic is in the current playlist, just update the index.
+  // If opening fresh from library, the playlist was already set by renderLibrary — just find the index.
+  // Only reset to single-item playlist if we have no folder context at all.
+  const idx = comicPlaylist.findIndex(c => c.id === comic.id);
+  if (idx !== -1) {
+    comicPlaylistIndex = idx;
+  } else {
+    // Comic not in current playlist (e.g. opened directly) — solo playlist
+    comicPlaylist = [comic];
+    comicPlaylistIndex = 0;
+  }
   document.getElementById('filename').textContent=comic.name;
   document.getElementById('zoomGroup').style.display='flex';
   document.getElementById('zoomDivider').style.display='block';
   updateNavButtons();
-  currentFile={file:null,name:comic.name,fromCloud:true};updateSaveButton();
   const readerEl=document.getElementById('reader');
   readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">☁️</div><div class="state-title">Downloading…</div><div class="loading-bar-wrap"><div class="loading-bar"></div></div><div class="state-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace">${escHtml(comic.name)}</div></div>`;
   try{
@@ -900,7 +874,7 @@ function hideLibraryPage(){
   if(document.querySelector('.page')){
     document.getElementById('zoomGroup').style.display  ='flex';
     document.getElementById('zoomDivider').style.display='block';
-    document.getElementById('filename').textContent=currentFile?.name||'';
+    document.getElementById('filename').textContent=comicPlaylist[comicPlaylistIndex]?.name||'';
   }
 }
 async function openLibraryPage(){
