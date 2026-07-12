@@ -850,11 +850,15 @@ document.getElementById('saveToCloudBtn').addEventListener('click', async () => 
 // ── PREV / NEXT ───────────────────────────────────────────
 document.getElementById('prevComicBtn').addEventListener('click',async()=>{
   if(comicPlaylistIndex<=0)return;
-  comicPlaylistIndex--;await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
+  comicPlaylistIndex--;
+  window.scrollTo({top:0,behavior:'instant'});
+  await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
 });
 document.getElementById('nextComicBtn').addEventListener('click',async()=>{
   if(comicPlaylistIndex>=comicPlaylist.length-1)return;
-  comicPlaylistIndex++;await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
+  comicPlaylistIndex++;
+  window.scrollTo({top:0,behavior:'instant'});
+  await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
 });
 
 // ── READER ────────────────────────────────────────────────
@@ -884,6 +888,7 @@ async function loadCBZFromFile(file){
       img.src=url;img.className='page';img.loading='lazy';img.alt=name;
       readerEl.appendChild(img);pageObserver.observe(img);
     }
+    window.scrollTo({top:0,behavior:'instant'});
     applyZoom();
   }catch(err){
     console.error(err);
