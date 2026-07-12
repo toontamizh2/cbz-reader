@@ -324,6 +324,29 @@
 
   <div class="divider"></div>
 
+  <!-- Open file — always available, no login needed -->
+  <div class="upload-wrap">
+    <label for="fileInput">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+        <path d="M6.5 1v8M3.5 4l3-3 3 3" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1 10.5h11" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      Open file
+    </label>
+    <input type="file" id="fileInput" accept=".cbz,.zip"/>
+  </div>
+
+  <!-- Save to cloud — appears only when a local file is open -->
+  <button class="btn-ghost" id="saveToCloudBtn" style="display:none">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M3 9.5a2.5 2.5 0 0 1 .3-4.98A3.5 3.5 0 0 1 10 5.2a2.3 2.3 0 0 1-.4 4.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M6.5 7v4M4.5 9.5l2 2 2-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Save to cloud
+  </button>
+
+  <div class="divider"></div>
+
   <!-- Logged out -->
   <div id="authArea" style="display:flex;gap:8px;align-items:center;">
     <button class="btn-ghost" id="showLoginBtn">Sign in</button>
@@ -617,6 +640,12 @@ document.addEventListener('keydown',e=>{
 // ── STATE ─────────────────────────────────────────────────
 let currentUser=null,zoomLevel=1,isSignup=false;
 let comicPlaylist=[],comicPlaylistIndex=-1;
+let currentFile=null; // { file, name, fromCloud }
+
+function updateSaveButton(){
+  const btn=document.getElementById('saveToCloudBtn');
+  btn.style.display=(currentFile&&!currentFile.fromCloud)?'flex':'none';
+}
 
 function setLoggedIn(user){
   currentUser=user;
@@ -734,11 +763,13 @@ document.getElementById('authSubmit').addEventListener('click',async()=>{
         setAuthMode(false);return;
       }
       closeModal('authModal');setLoggedIn(data.user);showToast(`Welcome, ${name}! 🎉`);
+      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
     }else{
       const{data,error}=await sb.auth.signInWithPassword({email,password});
       if(error)throw error;
       closeModal('authModal');setLoggedIn(data.user);
       showToast(`Welcome back, ${data.user.user_metadata?.name||data.user.email.split('@')[0]}!`);
+      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
     }
   }catch(err){errEl.textContent=err.message||'Something went wrong.';errEl.classList.add('show');}
   finally{btn.disabled=false;btn.innerHTML=isSignup?'Create account':'Sign in';}
@@ -756,6 +787,7 @@ document.addEventListener('click',()=>document.getElementById('userMenu').classL
 document.getElementById('menuLogout').addEventListener('click',async()=>{
   await sb.auth.signOut();currentUser=null;
   comicPlaylist=[];comicPlaylistIndex=-1;
+  currentFile=null;
   setLoggedIn(null);
   document.getElementById('zoomGroup').style.display='none';
   document.getElementById('zoomDivider').style.display='none';
@@ -763,6 +795,7 @@ document.getElementById('menuLogout').addEventListener('click',async()=>{
   document.getElementById('navDivider').style.display='none';
   document.getElementById('filename').textContent='';
   document.getElementById('reader').innerHTML='';
+  updateSaveButton();
   showHomeState(false);showToast('Signed out.');
 });
 document.getElementById('menuSettings').addEventListener('click',()=>{
@@ -785,6 +818,34 @@ window.addEventListener('wheel',e=>{
   if(!e.ctrlKey)return;e.preventDefault();
   zoomLevel=e.deltaY<0?Math.min(3,zoomLevel+.05):Math.max(.2,zoomLevel-.05);applyZoom();
 },{passive:false});
+
+// ── LOCAL FILE OPEN ──────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  currentFile = { file, name: file.name, fromCloud: false };
+  document.getElementById('filename').textContent = file.name;
+  document.getElementById('zoomGroup').style.display   = 'flex';
+  document.getElementById('zoomDivider').style.display = 'block';
+  // Clear cloud playlist — this is a local file
+  comicPlaylist = []; comicPlaylistIndex = -1;
+  updateNavButtons();
+  updateSaveButton();
+  await loadCBZFromFile(file);
+});
+
+document.getElementById('saveToCloudBtn').addEventListener('click', async () => {
+  if (!currentFile || currentFile.fromCloud) return;
+  if (!currentUser) {
+    showToast('Sign in to save this comic to your library.', 'info');
+    openAuthModal(true);
+    return;
+  }
+  await uploadToCloud(currentFile.file, null);
+  currentFile.fromCloud = true;
+  updateSaveButton();
+});
 
 // ── PREV / NEXT ───────────────────────────────────────────
 document.getElementById('prevComicBtn').addEventListener('click',async()=>{
