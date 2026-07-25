@@ -507,6 +507,24 @@
 </div>
 
 <!-- MOVE TO MODAL -->
+<!-- ── RENAME FILE MODAL ── -->
+<div class="modal-overlay" id="renameModal">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" id="renameModalClose">✕</button>
+    <h2 style="font-size:17px;margin-bottom:6px">Rename file</h2>
+    <p class="modal-sub">Enter a new name for this file.</p>
+    <div class="form-error" id="renameError"></div>
+    <div class="field">
+      <label>File name</label>
+      <input type="text" id="renameInput" placeholder="filename.cbz" autocomplete="off"/>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn-primary" id="renameConfirmBtn" style="flex:1">Rename</button>
+      <button id="renameCancelBtn" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px;border-radius:var(--radius);cursor:pointer;font-size:14px;font-weight:600;font-family:Inter,sans-serif;transition:background .15s" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="moveModal">
   <div class="modal move-modal">
     <button class="modal-close" id="moveModalClose">✕</button>
@@ -1148,13 +1166,7 @@ async function renderLibrary(){
         }
       }else if(action==='rename-file'){
         const comic=files.find(c=>c.id===id);
-        const current=comic?.name||'';
-        const newName=prompt('Rename file:',current);
-        if(!newName||!newName.trim()||newName.trim()===current)return;
-        const{error}=await sb.from('library').update({name:newName.trim()}).eq('id',id);
-        if(error){showToast('Failed to rename.','error');return;}
-        showToast('Renamed successfully.');
-        await renderLibrary();
+        openRenameModal(comic);
       }else if(action==='info-file'){
         const comic=files.find(c=>c.id===id);if(comic)openFileInfoModal(comic);
       }else if(action==='delete-file'){
@@ -1247,6 +1259,51 @@ async function openMoveModal(comic){
     });
   });
 }
+// ═══════════════════════════════════════════════════════════
+//  RENAME MODAL
+// ═══════════════════════════════════════════════════════════
+let renameTargetId = null;
+
+function openRenameModal(comic) {
+  renameTargetId = comic.id;
+  const input = document.getElementById('renameInput');
+  input.value = comic.name || '';
+  document.getElementById('renameError').classList.remove('show');
+  openModal('renameModal');
+  // Select all text for quick overwrite
+  setTimeout(() => { input.focus(); input.select(); }, 200);
+}
+
+async function doRename() {
+  const newName = document.getElementById('renameInput').value.trim();
+  const errEl   = document.getElementById('renameError');
+  errEl.classList.remove('show');
+  if (!newName) { errEl.textContent = 'Please enter a file name.'; errEl.classList.add('show'); return; }
+
+  const btn = document.getElementById('renameConfirmBtn');
+  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Renaming…`;
+
+  const { error } = await sb.from('library').update({ name: newName }).eq('id', renameTargetId);
+  if (error) {
+    errEl.textContent = 'Failed to rename. Please try again.';
+    errEl.classList.add('show');
+    btn.disabled = false; btn.innerHTML = 'Rename';
+    return;
+  }
+  closeModal('renameModal');
+  showToast('File renamed.');
+  await renderLibrary();
+  btn.disabled = false; btn.innerHTML = 'Rename';
+}
+
+document.getElementById('renameConfirmBtn').addEventListener('click', doRename);
+document.getElementById('renameCancelBtn') .addEventListener('click', () => closeModal('renameModal'));
+document.getElementById('renameModalClose').addEventListener('click', () => closeModal('renameModal'));
+document.getElementById('renameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doRename();
+  if (e.key === 'Escape') closeModal('renameModal');
+});
+
 document.getElementById('moveModalClose').addEventListener('click',()=>closeModal('moveModal'));
 
 // Library file upload
