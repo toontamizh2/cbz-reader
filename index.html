@@ -1095,6 +1095,10 @@ async function renderLibrary(){
         </svg>
       </button>
       <div class="lib-row-menu" id="menu-file-${comic.id}">
+        <div class="lib-row-menu-item" data-action="rename-file" data-id="${comic.id}">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5h2.5l6-6a1.77 1.77 0 0 0-2.5-2.5l-6 6V10.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M7.5 3l2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Rename
+        </div>
         <div class="lib-row-menu-item" data-action="move-file" data-id="${comic.id}">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4a1 1 0 0 1 1-1h2.5l1 1.3h4.5a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
           Move to…
@@ -1142,6 +1146,15 @@ async function renderLibrary(){
           await sb.from('folders').update({name:newName.trim()}).eq('id',id);
           showToast('Folder renamed.');await renderLibrary();
         }
+      }else if(action==='rename-file'){
+        const comic=files.find(c=>c.id===id);
+        const current=comic?.name||'';
+        const newName=prompt('Rename file:',current);
+        if(!newName||!newName.trim()||newName.trim()===current)return;
+        const{error}=await sb.from('library').update({name:newName.trim()}).eq('id',id);
+        if(error){showToast('Failed to rename.','error');return;}
+        showToast('Renamed successfully.');
+        await renderLibrary();
       }else if(action==='info-file'){
         const comic=files.find(c=>c.id===id);if(comic)openFileInfoModal(comic);
       }else if(action==='delete-file'){
