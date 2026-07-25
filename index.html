@@ -684,17 +684,17 @@ function setLoggedIn(user){
 }
 
 function updateNavButtons(){
-  const show = comicPlaylist.length > 1 && comicPlaylistIndex >= 0;
+  const libraryOpen = document.getElementById('libraryPage').style.display !== 'none';
+  const show = !libraryOpen && comicPlaylist.length > 1 && comicPlaylistIndex >= 0;
   document.getElementById('navGroup').style.display   = show ? 'flex'  : 'none';
   document.getElementById('navDivider').style.display = show ? 'block' : 'none';
   if (show) {
-    // Show current chapter name in the label for clarity
     const current = comicPlaylist[comicPlaylistIndex];
     const name    = current ? current.name.replace(/\.cbz$/i,'').replace(/\.zip$/i,'') : '';
     document.getElementById('navLabel').textContent = `${comicPlaylistIndex+1} / ${comicPlaylist.length}`;
     document.getElementById('navLabel').title = name;
-    document.getElementById('prevComicBtn').style.opacity = comicPlaylistIndex === 0                          ? '0.35' : '1';
-    document.getElementById('nextComicBtn').style.opacity = comicPlaylistIndex === comicPlaylist.length - 1  ? '0.35' : '1';
+    document.getElementById('prevComicBtn').style.opacity = comicPlaylistIndex === 0                         ? '0.35' : '1';
+    document.getElementById('nextComicBtn').style.opacity = comicPlaylistIndex === comicPlaylist.length - 1 ? '0.35' : '1';
     document.getElementById('prevComicBtn').disabled = comicPlaylistIndex === 0;
     document.getElementById('nextComicBtn').disabled = comicPlaylistIndex === comicPlaylist.length - 1;
   }
@@ -1033,9 +1033,10 @@ async function renderLibrary(){
     folders=fRes||[];files=lRes||[];
   }
 
-  // Save playlist for prev/next navigation
+  // Save playlist for prev/next navigation (used when a comic is opened from this folder)
   comicPlaylist=files;
-  updateNavButtons();
+  comicPlaylistIndex=-1; // reset — no chapter is "active" while browsing the library
+  // Do NOT call updateNavButtons() here — nav buttons must stay hidden while in library view
 
   if(folders.length===0&&files.length===0){
     list.innerHTML=`<div class="lib-empty-state">
