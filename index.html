@@ -950,6 +950,8 @@ function showLibraryPage(){
   document.getElementById('libTopbarBack').style.display='flex';
   document.getElementById('zoomGroup').style.display  ='none';
   document.getElementById('zoomDivider').style.display='none';
+  document.getElementById('navGroup').style.display   ='none';
+  document.getElementById('navDivider').style.display ='none';
 }
 function hideLibraryPage(){
   document.getElementById('libraryPage').style.display='none';
@@ -959,6 +961,7 @@ function hideLibraryPage(){
     document.getElementById('zoomGroup').style.display  ='flex';
     document.getElementById('zoomDivider').style.display='block';
     document.getElementById('filename').textContent=comicPlaylist[comicPlaylistIndex]?.name||'';
+    updateNavButtons();
   }
 }
 async function openLibraryPage(){
