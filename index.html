@@ -67,6 +67,14 @@
       display:flex;align-items:center;justify-content:center;gap:8px;}
     .btn-primary:hover:not(:disabled){background:#8d7dff;box-shadow:0 0 20px var(--accent-glow);}
     .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+    .btn-secondary{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+      border-radius:var(--radius);padding:11px;font-size:14px;font-weight:600;cursor:pointer;
+      font-family:'Inter',sans-serif;transition:background .15s;margin-top:4px;}
+    .btn-secondary:hover{background:var(--surface3);}
+    .btn-primary.btn-danger{background:var(--danger);}
+    .btn-primary.btn-danger:hover:not(:disabled){background:#ff7b7b;box-shadow:0 0 20px rgba(255,95,95,.3);}
+    .modal-actions{display:flex;gap:8px;margin-top:4px;}
+    .modal-actions .btn-primary,.modal-actions .btn-secondary{flex:1;margin-top:0;}
 
     /* UPLOAD WRAP */
     .upload-wrap{position:relative;overflow:hidden;}
@@ -104,9 +112,12 @@
     .menu-sep{height:1px;background:var(--border);margin:4px 0;}
 
     /* READER */
-    #reader{width:100%;margin-top:58px;}
-    .page{width:100%;display:block;margin:0 auto;transition:width .15s ease;opacity:0;}
+    #reader{width:100%;margin-top:58px;overflow-x:auto;}
+    .page{width:100%;display:block;margin:0 auto;transition:width .15s ease;opacity:0;
+      aspect-ratio:2/3;background:var(--surface);}
     .page.visible{animation:fadeIn .4s ease forwards;}
+    .page.loaded{background:transparent;}
+    .page.broken{aspect-ratio:auto;min-height:90px;}
     img{display:block;height:auto;}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
@@ -270,6 +281,22 @@
     .toast.success .toast-dot{background:var(--success);}
     .toast.error   .toast-dot{background:var(--danger);}
     .toast.info    .toast-dot{background:var(--accent);}
+
+    :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+    /* RESPONSIVE */
+    @media (max-width:760px){
+      .topbar{padding:0 10px;gap:6px;}
+      .brand-name,.filename,.chip-name{display:none;}
+      .btn-ghost,.btn-accent,.upload-wrap label{padding:7px 10px;}
+      .modal{padding:24px;}
+      .lib-page-topbar{padding:20px 16px 12px;}
+      .lib-breadcrumb{font-size:18px;}
+      .lib-page-search-wrap{margin-left:0;flex:1 1 100%;}
+      .lib-page-body{padding:8px 16px 100px;}
+      .lib-progress{width:calc(100% - 32px);}
+      .lib-fab-wrap{bottom:20px;right:20px;}
+    }
   </style>
 </head>
 <body>
@@ -410,7 +437,7 @@
   <div class="state-wrapper">
     <div class="state-icon">📖</div>
     <div class="state-title">Welcome to CBZ Reader</div>
-    <div class="state-sub">Sign in to access your cloud library and start reading.</div>
+    <div class="state-sub">Open a CBZ file to start reading — no account needed. Sign in to save to your cloud library.</div>
   </div>
 </div>
 
@@ -435,7 +462,7 @@
       <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password"/>
     </div>
     <button class="btn-primary" id="authSubmit">Sign in</button>
-    <div class="modal-switch">
+    <div class="modal-switch" id="authSwitch">
       Don't have an account? <a id="authToggle">Sign up free</a>
     </div>
   </div>
@@ -506,25 +533,38 @@
   </div>
 </div>
 
-<!-- MOVE TO MODAL -->
-<!-- ── RENAME FILE MODAL ── -->
+<!-- RENAME MODAL (files + folders) -->
 <div class="modal-overlay" id="renameModal">
   <div class="modal" style="max-width:380px">
     <button class="modal-close" id="renameModalClose">✕</button>
-    <h2 style="font-size:17px;margin-bottom:6px">Rename file</h2>
-    <p class="modal-sub">Enter a new name for this file.</p>
+    <h2 id="renameTitle" style="font-size:17px;margin-bottom:6px">Rename file</h2>
+    <p class="modal-sub" id="renameSub">Enter a new name for this file.</p>
     <div class="form-error" id="renameError"></div>
     <div class="field">
-      <label>File name</label>
+      <label id="renameLabel">File name</label>
       <input type="text" id="renameInput" placeholder="filename.cbz" autocomplete="off"/>
     </div>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn-primary" id="renameConfirmBtn" style="flex:1">Rename</button>
-      <button id="renameCancelBtn" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px;border-radius:var(--radius);cursor:pointer;font-size:14px;font-weight:600;font-family:Inter,sans-serif;transition:background .15s" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">Cancel</button>
+    <div class="modal-actions">
+      <button class="btn-primary" id="renameConfirmBtn">Rename</button>
+      <button class="btn-secondary" id="renameCancelBtn">Cancel</button>
     </div>
   </div>
 </div>
 
+<!-- CONFIRM MODAL (replaces the browser's confirm()) -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" id="confirmModalClose">✕</button>
+    <h2 id="confirmTitle" style="font-size:17px;margin-bottom:6px">Are you sure?</h2>
+    <p class="modal-sub" id="confirmMessage"></p>
+    <div class="modal-actions">
+      <button class="btn-primary btn-danger" id="confirmOkBtn">Confirm</button>
+      <button class="btn-secondary" id="confirmCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOVE TO MODAL -->
 <div class="modal-overlay" id="moveModal">
   <div class="modal move-modal">
     <button class="modal-close" id="moveModalClose">✕</button>
@@ -566,7 +606,7 @@
       </div>
       <div class="field"><label>Type DELETE to confirm</label><input type="text" id="deleteConfirmInput" placeholder="DELETE"/></div>
       <div class="form-error" id="deleteError"></div>
-      <button class="btn-primary" id="deleteAccountBtn" style="background:var(--danger)">Delete my account permanently</button>
+      <button class="btn-primary btn-danger" id="deleteAccountBtn">Delete my account permanently</button>
     </div>
   </div>
 </div>
@@ -611,161 +651,212 @@ const SUPABASE_URL = 'https://jimjjtrmislwdleueeyb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_yGE7cI31ZF26t_J2eye80A_VAs9DqBk';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const BUCKET = 'cbz-files';
+const IMG_RE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+const $ = id => document.getElementById(id);
 
 // ── UTILS ─────────────────────────────────────────────────
 function escHtml(s=''){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function formatBytes(b){if(!b)return'—';if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';if(b<1073741824)return(b/1048576).toFixed(1)+'MB';return(b/1073741824).toFixed(1)+'GB';}
+const naturalCompare=(a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'});
+function friendlyError(err){
+  const m=(err&&err.message)||String(err||'');
+  if(/failed to fetch|networkerror|load failed/i.test(m))
+    return "Can't reach the server. Check your connection — if it keeps happening, your Supabase project may be paused (restore it from the Supabase dashboard).";
+  return m||'Something went wrong.';
+}
+// Image entries of a CBZ, in reading order. Skips folders and macOS junk (__MACOSX/._001.jpg).
+function imageNamesFromZip(zip){
+  return Object.keys(zip.files).filter(n=>{
+    if(zip.files[n].dir||!IMG_RE.test(n))return false;
+    if(n.startsWith('__MACOSX/')||n.includes('/__MACOSX/'))return false;
+    return !n.split('/').pop().startsWith('.');
+  }).sort(naturalCompare);
+}
+// Cover-crop to a fixed 2:3 JPEG. Resolves null (never hangs) if the image can't be decoded.
 function resizeBlob(blob,targetW=300){
   const targetH=Math.round(targetW*1.5);
-  return new Promise(res=>{
-    const fr=new FileReader();
-    fr.onload=()=>{
-      const img=new Image();
-      img.onload=()=>{
-        const sr=img.width/img.height,dr=targetW/targetH;
-        let sx,sy,sw,sh;
-        if(sr>dr){sh=img.height;sw=sh*dr;sx=(img.width-sw)/2;sy=0;}
-        else{sw=img.width;sh=sw/dr;sx=0;sy=0;}
+  return new Promise(resolve=>{
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const W=img.naturalWidth,H=img.naturalHeight;
+        const sr=W/H,dr=targetW/targetH;
+        let sx=0,sy=0,sw=W,sh=H;
+        if(sr>dr){sw=sh*dr;sx=(W-sw)/2;}else{sh=sw/dr;}
         const c=document.createElement('canvas');c.width=targetW;c.height=targetH;
         const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
         ctx.drawImage(img,sx,sy,sw,sh,0,0,targetW,targetH);
-        c.toBlob(b=>res(b),'image/jpeg',.85);
-      };img.src=fr.result;
-    };fr.readAsDataURL(blob);
+        c.toBlob(b=>{URL.revokeObjectURL(url);resolve(b);},'image/jpeg',.85);
+      }catch(e){URL.revokeObjectURL(url);resolve(null);}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);resolve(null);};
+    img.src=url;
   });
 }
+const stateHTML=(icon,title,sub='',extra='')=>
+  `<div class="state-wrapper"><div class="state-icon">${icon}</div><div class="state-title">${title}</div>${sub?`<div class="state-sub">${sub}</div>`:''}${extra}</div>`;
+const LOADING_BAR='<div class="loading-bar-wrap"><div class="loading-bar"></div></div>';
 
 // ── TOAST ─────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg,type='success'){
-  const t=document.getElementById('toast');
+  const t=$('toast');
   t.className=`toast ${type}`;
-  document.getElementById('toastMsg').textContent=msg;
+  $('toastMsg').textContent=msg;
   clearTimeout(toastTimer);t.classList.add('show');
   toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
 }
 
-// ── MODAL HELPERS ─────────────────────────────────────────
-function openModal(id){document.getElementById(id).classList.add('open');}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+// ── MODAL HELPERS (+ styled confirm dialog) ───────────────
+let confirmResolve=null;
+function settleConfirm(v){if(confirmResolve){const r=confirmResolve;confirmResolve=null;r(v);}}
+function openModal(id){$(id).classList.add('open');}
+function closeModal(id){$(id).classList.remove('open');if(id==='confirmModal')settleConfirm(false);}
+function confirmDialog({title='Are you sure?',message='',confirmText='Confirm',danger=true}={}){
+  return new Promise(resolve=>{
+    settleConfirm(false);
+    confirmResolve=resolve;
+    $('confirmTitle').textContent=title;
+    $('confirmMessage').textContent=message;
+    const ok=$('confirmOkBtn');
+    ok.textContent=confirmText;ok.classList.toggle('btn-danger',danger);
+    openModal('confirmModal');
+    setTimeout(()=>ok.focus(),150);
+  });
+}
+$('confirmOkBtn').addEventListener('click',()=>{settleConfirm(true);closeModal('confirmModal');});
+$('confirmCancelBtn').addEventListener('click',()=>closeModal('confirmModal'));
+$('confirmModalClose').addEventListener('click',()=>closeModal('confirmModal'));
 document.querySelectorAll('.modal-overlay').forEach(el=>{
   el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);});
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(el=>closeModal(el.id));
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.open').forEach(el=>closeModal(el.id));
+    closeRowMenus();
+  }
 });
 
 // ── STATE ─────────────────────────────────────────────────
 let currentUser=null,zoomLevel=1,isSignup=false;
-let comicPlaylist=[],comicPlaylistIndex=-1;
-let currentFile=null; // { file, name, fromCloud }
+let readerActive=false;          // a comic (local or cloud) is open in the reader
+let currentFile=null;            // { file, name, fromCloud }
+let currentName='';
+let comicPlaylist=[],comicPlaylistIndex=-1;   // chapters of the comic being READ
+let loadToken=0,pageUrls=[],readerScrollY=0,savingLocal=false;
+
+const libraryOpen=()=>$('libraryPage').style.display!=='none';
 
 function updateSaveButton(){
-  const btn=document.getElementById('saveToCloudBtn');
-  btn.style.display=(currentFile&&!currentFile.fromCloud)?'flex':'none';
+  const btn=$('saveToCloudBtn');
+  btn.style.display=(currentFile&&!currentFile.fromCloud&&!libraryOpen())?'flex':'none';
+  btn.disabled=savingLocal;
+  btn.style.opacity=savingLocal?'.6':'1';
 }
-
+function updateNavButtons(){
+  const show=readerActive&&!libraryOpen()&&comicPlaylist.length>1&&comicPlaylistIndex>=0;
+  $('navGroup').style.display  =show?'flex':'none';
+  $('navDivider').style.display=show?'block':'none';
+  if(!show)return;
+  const cur=comicPlaylist[comicPlaylistIndex];
+  const first=comicPlaylistIndex===0,last=comicPlaylistIndex===comicPlaylist.length-1;
+  $('navLabel').textContent=`${comicPlaylistIndex+1} / ${comicPlaylist.length}`;
+  $('navLabel').title=cur?cur.name.replace(/\.(cbz|zip)$/i,''):'';
+  $('prevComicBtn').style.opacity=first?'0.35':'1';$('prevComicBtn').disabled=first;
+  $('nextComicBtn').style.opacity=last?'0.35':'1';$('nextComicBtn').disabled=last;
+}
+// Single place that decides which topbar controls are visible.
+function syncTopbar(){
+  const lib=libraryOpen(),showZoom=readerActive&&!lib;
+  $('zoomGroup').style.display  =showZoom?'flex':'none';
+  $('zoomDivider').style.display=showZoom?'block':'none';
+  $('libTopbarBack').style.display=lib?'flex':'none';
+  $('filename').textContent=readerActive?currentName:'';
+  updateNavButtons();updateSaveButton();
+}
+function showHomeState(loggedIn){
+  $('reader').innerHTML=stateHTML('📖','Welcome to CBZ Reader',
+    `Open a CBZ file to start reading — no account needed.${loggedIn?' Open saved comics from <b style="color:var(--text)">Library</b>.':' Sign in to save to your cloud library.'}`);
+}
+function clearPages(){
+  pageObserver.disconnect();
+  pageUrls.forEach(u=>URL.revokeObjectURL(u));
+  pageUrls=[];
+}
+function resetReader(){
+  loadToken++;clearPages();
+  readerActive=false;currentFile=null;currentName='';
+  comicPlaylist=[];comicPlaylistIndex=-1;
+  syncTopbar();showHomeState(!!currentUser);
+}
 function setLoggedIn(user){
   currentUser=user;
   const on=!!user;
-  document.getElementById('authArea').style.display   =on?'none':'flex';
-  document.getElementById('loggedArea').style.display =on?'flex':'none';
+  $('authArea').style.display  =on?'none':'flex';
+  $('loggedArea').style.display=on?'flex':'none';
   if(on){
     const email=user.email||'';
     const name=user.user_metadata?.name||email.split('@')[0]||'User';
-    const initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    document.getElementById('userAvatar').textContent  =initials;
-    document.getElementById('userChipName').textContent=name.split(' ')[0];
-    document.getElementById('menuName').textContent    =name;
-    document.getElementById('menuEmail').textContent   =email;
+    $('userAvatar').textContent  =name.split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2)||'?';
+    $('userChipName').textContent=name.split(' ')[0];
+    $('menuName').textContent    =name;
+    $('menuEmail').textContent   =email;
+  }else{
+    resetLibraryState();
+    if(libraryOpen())hideLibraryPage();
   }
-  updateNavButtons();
-  if(!document.querySelector('.page'))showHomeState(on);
-}
-
-function updateNavButtons(){
-  const libraryOpen = document.getElementById('libraryPage').style.display !== 'none';
-  const show = !libraryOpen && comicPlaylist.length > 1 && comicPlaylistIndex >= 0;
-  document.getElementById('navGroup').style.display   = show ? 'flex'  : 'none';
-  document.getElementById('navDivider').style.display = show ? 'block' : 'none';
-  if (show) {
-    const current = comicPlaylist[comicPlaylistIndex];
-    const name    = current ? current.name.replace(/\.cbz$/i,'').replace(/\.zip$/i,'') : '';
-    document.getElementById('navLabel').textContent = `${comicPlaylistIndex+1} / ${comicPlaylist.length}`;
-    document.getElementById('navLabel').title = name;
-    document.getElementById('prevComicBtn').style.opacity = comicPlaylistIndex === 0                         ? '0.35' : '1';
-    document.getElementById('nextComicBtn').style.opacity = comicPlaylistIndex === comicPlaylist.length - 1 ? '0.35' : '1';
-    document.getElementById('prevComicBtn').disabled = comicPlaylistIndex === 0;
-    document.getElementById('nextComicBtn').disabled = comicPlaylistIndex === comicPlaylist.length - 1;
-  }
-}
-
-function showHomeState(loggedIn){
-  document.getElementById('reader').innerHTML=`<div class="state-wrapper">
-    <div class="state-icon">📖</div>
-    <div class="state-title">Welcome to CBZ Reader</div>
-    <div class="state-sub">Open a CBZ file to start reading — no account needed.${loggedIn?' Open saved comics from <b style="color:var(--text)">Library</b>.':' Sign in to save to your cloud library.'}</div>
-  </div>`;
+  syncTopbar();
+  if(!readerActive)showHomeState(on);
 }
 
 // ── TOPBAR SCROLL HIDE ────────────────────────────────────
 let lastY=0;
 window.addEventListener('scroll',()=>{
   const y=window.scrollY;
-  document.getElementById('topbar').classList.toggle('hidden',y>80&&y>lastY);
+  $('topbar').classList.toggle('hidden',y>80&&y>lastY);
   lastY=y;
-});
+},{passive:true});
 
 // ── BRAND HOME ────────────────────────────────────────────
-document.getElementById('brandHome').addEventListener('click',()=>{
-  if(document.getElementById('libraryPage').style.display!=='none'){hideLibraryPage();return;}
-  if(document.querySelector('.page')){
-    document.getElementById('reader').innerHTML='';
-    document.getElementById('filename').textContent='';
-    document.getElementById('zoomGroup').style.display='none';
-    document.getElementById('zoomDivider').style.display='none';
-    comicPlaylist=[];comicPlaylistIndex=-1;
-    updateNavButtons();showHomeState(!!currentUser);
-  }
+$('brandHome').addEventListener('click',()=>{
+  if(libraryOpen()){hideLibraryPage();return;}
+  if(readerActive)resetReader();
 });
 
 // ── AUTH ──────────────────────────────────────────────────
 function openAuthModal(signup=false){
-  isSignup=signup;setAuthMode(signup);
-  ['authEmail','authPassword','authName'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('authError').classList.remove('show');
-  document.getElementById('authInfo').classList.remove('show');
+  setAuthMode(signup);
+  ['authEmail','authPassword','authName'].forEach(id=>$(id).value='');
   openModal('authModal');
-  setTimeout(()=>document.getElementById('authEmail').focus(),300);
+  setTimeout(()=>$('authEmail').focus(),300);
 }
-
 function setAuthMode(signup){
   isSignup=signup;
-  document.getElementById('authTitle').textContent  =signup?'Create account':'Sign in';
-  document.getElementById('authSub').textContent    =signup?'Start building your cloud library.':'Welcome back. Your library is waiting.';
-  document.getElementById('authSubmit').innerHTML   =signup?'Create account':'Sign in';
-  document.getElementById('nameField').style.display=signup?'flex':'none';
-  document.getElementById('authError').classList.remove('show');
-  document.getElementById('authInfo').classList.remove('show');
-  const sw=document.querySelector('.modal-switch');
-  sw.innerHTML=signup
+  $('authTitle').textContent  =signup?'Create account':'Sign in';
+  $('authSub').textContent    =signup?'Start building your cloud library.':'Welcome back. Your library is waiting.';
+  $('authSubmit').textContent =signup?'Create account':'Sign in';
+  $('nameField').style.display=signup?'flex':'none';
+  $('authPassword').autocomplete=signup?'new-password':'current-password';
+  $('authError').classList.remove('show');
+  $('authInfo').classList.remove('show');
+  $('authSwitch').innerHTML=signup
     ?`Already have an account? <a id="authToggle">Sign in</a>`
     :`Don't have an account? <a id="authToggle">Sign up free</a>`;
-  document.getElementById('authToggle').addEventListener('click',()=>setAuthMode(!isSignup));
 }
+$('authSwitch').addEventListener('click',e=>{if(e.target.closest('#authToggle'))setAuthMode(!isSignup);});
+$('showLoginBtn') .addEventListener('click',()=>openAuthModal(false));
+$('showSignupBtn').addEventListener('click',()=>openAuthModal(true));
+$('authModalClose').addEventListener('click',()=>closeModal('authModal'));
 
-document.getElementById('showLoginBtn') .addEventListener('click',()=>openAuthModal(false));
-document.getElementById('showSignupBtn').addEventListener('click',()=>openAuthModal(true));
-document.getElementById('authModalClose').addEventListener('click',()=>closeModal('authModal'));
-document.getElementById('authToggle')   .addEventListener('click',()=>setAuthMode(!isSignup));
-
-document.getElementById('authSubmit').addEventListener('click',async()=>{
-  const email=document.getElementById('authEmail').value.trim();
-  const password=document.getElementById('authPassword').value;
-  const name=document.getElementById('authName').value.trim();
-  const errEl=document.getElementById('authError');
-  const infoEl=document.getElementById('authInfo');
-  const btn=document.getElementById('authSubmit');
+function afterAuth(user,welcome){
+  closeModal('authModal');setLoggedIn(user);showToast(welcome);
+}
+$('authSubmit').addEventListener('click',async()=>{
+  const email=$('authEmail').value.trim();
+  const password=$('authPassword').value;
+  const name=$('authName').value.trim();
+  const errEl=$('authError'),infoEl=$('authInfo'),btn=$('authSubmit');
   errEl.classList.remove('show');infoEl.classList.remove('show');
   if(!email||!password){errEl.textContent='Please fill in all fields.';errEl.classList.add('show');return;}
   if(isSignup&&!name){errEl.textContent='Please enter your name.';errEl.classList.add('show');return;}
@@ -775,270 +866,324 @@ document.getElementById('authSubmit').addEventListener('click',async()=>{
     if(isSignup){
       const{data,error}=await sb.auth.signUp({email,password,options:{data:{name}}});
       if(error)throw error;
+      // Supabase returns a fake user with no identities when the email is already registered
+      if(data.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0)
+        throw new Error('An account with this email already exists. Try signing in instead.');
       if(data.user&&!data.session){
+        setAuthMode(false);   // switch first — it clears the banners
         infoEl.textContent='✉️ Check your email to confirm your account, then sign in.';
-        infoEl.classList.add('show');btn.innerHTML='Create account';btn.disabled=false;
-        setAuthMode(false);return;
+        infoEl.classList.add('show');
+        return;
       }
-      closeModal('authModal');setLoggedIn(data.user);showToast(`Welcome, ${name}! 🎉`);
-      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
+      afterAuth(data.user,`Welcome, ${name}! 🎉`);
     }else{
       const{data,error}=await sb.auth.signInWithPassword({email,password});
       if(error)throw error;
-      closeModal('authModal');setLoggedIn(data.user);
-      showToast(`Welcome back, ${data.user.user_metadata?.name||data.user.email.split('@')[0]}!`);
-      if(currentFile&&!currentFile.fromCloud){uploadToCloud(currentFile.file,null);currentFile.fromCloud=true;updateSaveButton();}
+      afterAuth(data.user,`Welcome back, ${data.user.user_metadata?.name||data.user.email.split('@')[0]}!`);
     }
-  }catch(err){errEl.textContent=err.message||'Something went wrong.';errEl.classList.add('show');}
-  finally{btn.disabled=false;btn.innerHTML=isSignup?'Create account':'Sign in';}
+  }catch(err){errEl.textContent=friendlyError(err);errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.textContent=isSignup?'Create account':'Sign in';}
 });
 ['authEmail','authPassword','authName'].forEach(id=>{
-  document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('authSubmit').click();});
+  $(id).addEventListener('keydown',e=>{if(e.key==='Enter')$('authSubmit').click();});
 });
 
 // ── USER MENU ─────────────────────────────────────────────
-document.getElementById('userChip').addEventListener('click',e=>{
-  e.stopPropagation();document.getElementById('userMenu').classList.toggle('open');
+$('userChip').addEventListener('click',()=>$('userMenu').classList.toggle('open'));
+// one global click handler closes every floating menu
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.lib-row-menu-btn'))closeRowMenus();
+  if(!e.target.closest('#userChip'))$('userMenu').classList.remove('open');
+  if(!e.target.closest('#libFabBtn'))$('libFabMenu').classList.remove('open');
 });
-document.addEventListener('click',()=>document.getElementById('userMenu').classList.remove('open'));
-
-document.getElementById('menuLogout').addEventListener('click',async()=>{
-  await sb.auth.signOut();currentUser=null;
-  comicPlaylist=[];comicPlaylistIndex=-1;
-  currentFile=null;
-  setLoggedIn(null);
-  document.getElementById('zoomGroup').style.display='none';
-  document.getElementById('zoomDivider').style.display='none';
-  document.getElementById('navGroup').style.display='none';
-  document.getElementById('navDivider').style.display='none';
-  document.getElementById('filename').textContent='';
-  document.getElementById('reader').innerHTML='';
-  updateSaveButton();
-  showHomeState(false);showToast('Signed out.');
+$('menuLogout').addEventListener('click',async()=>{
+  $('userMenu').classList.remove('open');
+  try{await sb.auth.signOut();}catch(e){console.warn(e);}
+  setLoggedIn(null);resetReader();
+  showToast('Signed out.');
 });
-document.getElementById('menuSettings').addEventListener('click',()=>{
-  document.getElementById('userMenu').classList.remove('open');openSettingsModal();
-});
-document.getElementById('menuLibrary').addEventListener('click',()=>{
-  document.getElementById('userMenu').classList.remove('open');openLibraryPage();
-});
-document.getElementById('openLibBtn').addEventListener('click',openLibraryPage);
+$('menuSettings').addEventListener('click',()=>{$('userMenu').classList.remove('open');openSettingsModal();});
+$('menuLibrary').addEventListener('click',()=>{$('userMenu').classList.remove('open');openLibraryPage();});
+$('openLibBtn').addEventListener('click',openLibraryPage);
 
 // ── ZOOM ──────────────────────────────────────────────────
 function applyZoom(){
   document.querySelectorAll('.page').forEach(img=>img.style.width=`${zoomLevel*100}%`);
-  document.getElementById('zoomReset').textContent=`${Math.round(zoomLevel*100)}%`;
+  $('zoomReset').textContent=`${Math.round(zoomLevel*100)}%`;
 }
-document.getElementById('zoomIn')   .addEventListener('click',()=>{zoomLevel=Math.min(3,zoomLevel+.1);applyZoom();});
-document.getElementById('zoomOut')  .addEventListener('click',()=>{zoomLevel=Math.max(.2,zoomLevel-.1);applyZoom();});
-document.getElementById('zoomReset').addEventListener('click',()=>{zoomLevel=1;applyZoom();});
+function setZoom(z){zoomLevel=Math.min(3,Math.max(.2,Math.round(z*100)/100));applyZoom();}
+$('zoomIn')   .addEventListener('click',()=>setZoom(zoomLevel+.1));
+$('zoomOut')  .addEventListener('click',()=>setZoom(zoomLevel-.1));
+$('zoomReset').addEventListener('click',()=>setZoom(1));
+// only hijack Ctrl+wheel while actually reading (otherwise leave browser zoom alone)
 window.addEventListener('wheel',e=>{
-  if(!e.ctrlKey)return;e.preventDefault();
-  zoomLevel=e.deltaY<0?Math.min(3,zoomLevel+.05):Math.max(.2,zoomLevel-.05);applyZoom();
+  if(!e.ctrlKey||!readerActive||libraryOpen())return;
+  e.preventDefault();setZoom(zoomLevel+(e.deltaY<0?.05:-.05));
 },{passive:false});
 
-// ── LOCAL FILE OPEN ──────────────────────────────────────
-document.getElementById('fileInput').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  e.target.value = '';
-  currentFile = { file, name: file.name, fromCloud: false };
-  document.getElementById('filename').textContent = file.name;
-  document.getElementById('zoomGroup').style.display   = 'flex';
-  document.getElementById('zoomDivider').style.display = 'block';
-  // Clear cloud playlist — this is a local file
-  comicPlaylist = []; comicPlaylistIndex = -1;
-  updateNavButtons();
-  updateSaveButton();
+// ── LOCAL FILE OPEN ───────────────────────────────────────
+$('fileInput').addEventListener('change',async e=>{
+  const file=e.target.files[0];e.target.value='';
+  if(!file)return;
+  if(libraryOpen())hideLibraryPage();   // otherwise the file would load into a hidden reader
+  currentFile={file,name:file.name,fromCloud:false};currentName=file.name;
+  comicPlaylist=[];comicPlaylistIndex=-1;readerActive=true;
+  syncTopbar();
   await loadCBZFromFile(file);
 });
 
-document.getElementById('saveToCloudBtn').addEventListener('click', async () => {
-  if (!currentFile || currentFile.fromCloud) return;
-  if (!currentUser) {
-    showToast('Sign in to save this comic to your library.', 'info');
-    openAuthModal(true);
-    return;
-  }
-  await uploadToCloud(currentFile.file, null);
-  currentFile.fromCloud = true;
+// Save the open local file to the cloud (manual, or right after sign-in)
+async function saveCurrentLocal(){
+  if(!currentFile||currentFile.fromCloud||savingLocal||!currentUser)return;
+  const cf=currentFile;
+  savingLocal=true;updateSaveButton();
+  showToast('Saving to your library…','info');
+  const ok=await uploadToCloud(cf.file,null);
+  savingLocal=false;
+  if(ok)cf.fromCloud=true;
   updateSaveButton();
+}
+$('saveToCloudBtn').addEventListener('click',async()=>{
+  if(!currentFile||currentFile.fromCloud)return;
+  if(!currentUser){showToast('Sign in to save this comic to your library.','info');openAuthModal(true);return;}
+  await saveCurrentLocal();
 });
 
-// ── PREV / NEXT ───────────────────────────────────────────
-document.getElementById('prevComicBtn').addEventListener('click',async()=>{
-  if(comicPlaylistIndex<=0)return;
-  comicPlaylistIndex--;
-  window.scrollTo({top:0,behavior:'instant'});
-  await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
-});
-document.getElementById('nextComicBtn').addEventListener('click',async()=>{
-  if(comicPlaylistIndex>=comicPlaylist.length-1)return;
-  comicPlaylistIndex++;
-  window.scrollTo({top:0,behavior:'instant'});
-  await openComicFromCloud(comicPlaylist[comicPlaylistIndex],false);
-});
+// ── PREV / NEXT CHAPTER ───────────────────────────────────
+async function stepChapter(delta){
+  const i=comicPlaylistIndex+delta;
+  if(i<0||i>=comicPlaylist.length)return;
+  comicPlaylistIndex=i;
+  await openComicFromCloud(comicPlaylist[i],true);
+}
+$('prevComicBtn').addEventListener('click',()=>stepChapter(-1));
+$('nextComicBtn').addEventListener('click',()=>stepChapter(1));
 
 // ── READER ────────────────────────────────────────────────
+// Pages are extracted from the zip lazily, as they approach the viewport.
 const pageObserver=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');pageObserver.unobserve(e.target);}});
-},{rootMargin:'200px'});
+  entries.forEach(e=>{
+    if(!e.isIntersecting)return;
+    pageObserver.unobserve(e.target);
+    hydratePage(e.target);
+  });
+},{rootMargin:'1500px 0px'});
 
-async function loadCBZFromFile(file){
-  const readerEl=document.getElementById('reader');
-  document.getElementById('zoomGroup').style.display='flex';
-  document.getElementById('zoomDivider').style.display='block';
-  readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">⏳</div><div class="state-title">Loading…</div><div class="loading-bar-wrap"><div class="loading-bar"></div></div></div>`;
+async function hydratePage(img){
+  const meta=img._meta;
+  if(!meta||meta.token!==loadToken)return;
   try{
-    const zip=await JSZip.loadAsync(file);
-    const imageFiles=Object.keys(zip.files)
-      .filter(n=>/\.(jpg|jpeg|png|webp)$/i.test(n))
-      .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
-    if(imageFiles.length===0){
-      readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">🔍</div><div class="state-title">No images found</div><div class="state-sub">This archive doesn't contain any supported images.</div></div>`;
-      return;
-    }
-    readerEl.innerHTML='';
-    for(const name of imageFiles){
-      const blob=await zip.files[name].async('blob');
-      const url=URL.createObjectURL(blob);
-      const img=document.createElement('img');
-      img.src=url;img.className='page';img.loading='lazy';img.alt=name;
-      readerEl.appendChild(img);pageObserver.observe(img);
-    }
-    window.scrollTo({top:0,behavior:'instant'});
-    applyZoom();
+    const blob=await meta.zip.files[meta.name].async('blob');
+    if(meta.token!==loadToken)return;
+    const url=URL.createObjectURL(blob);
+    pageUrls.push(url);
+    img.onload=()=>{img.style.aspectRatio='auto';img.alt=meta.name;img.classList.add('loaded','visible');};
+    img.onerror=()=>img.classList.add('broken','visible');
+    img.src=url;
   }catch(err){
-    console.error(err);
-    readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">⚠️</div><div class="state-title">Couldn't open file</div><div class="state-sub">Make sure the file is a valid CBZ or ZIP archive.</div></div>`;
+    console.error(err);img.classList.add('broken','visible');
   }
 }
 
-async function openComicFromCloud(comic, fromLibrary=true){
-  // If comic is in the current playlist, just update the index.
-  // If opening fresh from library, the playlist was already set by renderLibrary — just find the index.
-  // Only reset to single-item playlist if we have no folder context at all.
-  const idx = comicPlaylist.findIndex(c => c.id === comic.id);
-  if (idx !== -1) {
-    comicPlaylistIndex = idx;
-  } else {
-    // Comic not in current playlist (e.g. opened directly) — solo playlist
-    comicPlaylist = [comic];
-    comicPlaylistIndex = 0;
+async function loadCBZFromFile(file,token=++loadToken){
+  const readerEl=$('reader');
+  clearPages();readerScrollY=0;
+  readerEl.innerHTML=stateHTML('⏳','Loading…','',LOADING_BAR);
+  try{
+    const zip=await JSZip.loadAsync(file);
+    if(token!==loadToken)return;
+    const names=imageNamesFromZip(zip);
+    if(!names.length){
+      readerEl.innerHTML=stateHTML('🔍','No images found',"This archive doesn't contain any supported images.");
+      return;
+    }
+    const frag=document.createDocumentFragment();
+    for(const name of names){
+      const img=document.createElement('img');
+      img.className='page';img.alt='';img.decoding='async';
+      img.style.width=`${zoomLevel*100}%`;
+      img._meta={zip,name,token};
+      frag.appendChild(img);
+    }
+    readerEl.innerHTML='';readerEl.appendChild(frag);
+    readerEl.querySelectorAll('.page').forEach(i=>pageObserver.observe(i));
+    window.scrollTo({top:0,behavior:'instant'});
+    applyZoom();
+  }catch(err){
+    if(token!==loadToken)return;
+    console.error(err);
+    readerEl.innerHTML=stateHTML('⚠️',"Couldn't open file",'Make sure the file is a valid CBZ or ZIP archive.');
   }
-  document.getElementById('filename').textContent=comic.name;
-  document.getElementById('zoomGroup').style.display='flex';
-  document.getElementById('zoomDivider').style.display='block';
-  updateNavButtons();
-  const readerEl=document.getElementById('reader');
-  readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">☁️</div><div class="state-title">Downloading…</div><div class="loading-bar-wrap"><div class="loading-bar"></div></div><div class="state-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace">${escHtml(comic.name)}</div></div>`;
+}
+
+// Chapters = files in the same folder as `comic`, in natural name order (so "next" = next chapter).
+async function setPlaylistFor(comic){
+  let siblings=libFiles.filter(f=>f.folder_id===comic.folder_id);
+  if(libSearchTerm||!siblings.some(f=>f.id===comic.id)){
+    // opened from search results (or unknown context): fetch the whole folder
+    const q=sb.from('library').select('*');
+    const{data}=await(comic.folder_id?q.eq('folder_id',comic.folder_id):q.is('folder_id',null));
+    siblings=data&&data.some(f=>f.id===comic.id)?data:[comic];
+  }
+  comicPlaylist=[...siblings].sort((a,b)=>naturalCompare(a.name,b.name));
+  comicPlaylistIndex=comicPlaylist.findIndex(f=>f.id===comic.id);
+}
+
+async function openComicFromCloud(comic,keepPlaylist=false){
+  const token=++loadToken;
+  clearPages();
+  window.scrollTo({top:0,behavior:'instant'});
+  currentFile={file:null,name:comic.name,fromCloud:true};   // hides "Save to cloud"
+  currentName=comic.name;readerActive=true;
+  const readerEl=$('reader');
+  readerEl.innerHTML=stateHTML('☁️','Downloading…','',
+    `${LOADING_BAR}<div class="state-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace">${escHtml(comic.name)}</div>`);
+  if(keepPlaylist)comicPlaylistIndex=comicPlaylist.findIndex(f=>f.id===comic.id);
+  else await setPlaylistFor(comic);
+  if(token!==loadToken)return;
+  syncTopbar();
   try{
     const{data:blob,error}=await sb.storage.from(BUCKET).download(comic.storage_path);
+    if(token!==loadToken)return;
     if(error)throw error;
-    await loadCBZFromFile(new File([blob],comic.name,{type:'application/zip'}));
+    await loadCBZFromFile(new File([blob],comic.name,{type:'application/zip'}),token);
   }catch(err){
-    readerEl.innerHTML=`<div class="state-wrapper"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load file</div><div class="state-sub">${escHtml(err.message||'Download failed.')}</div></div>`;
+    if(token!==loadToken)return;
+    readerEl.innerHTML=stateHTML('⚠️',"Couldn't load file",escHtml(friendlyError(err)));
   }
 }
 
 // ── LIBRARY PAGE ──────────────────────────────────────────
 let libCurrentFolderId=null,libFolderPath=[],libSearchTerm='';
+let libFolders=[],libFiles=[],libRenderToken=0;
 
+function resetLibraryState(){
+  libRenderToken++;
+  libCurrentFolderId=null;libFolderPath=[];libSearchTerm='';libFolders=[];libFiles=[];
+  $('libSearch').value='';$('libList').innerHTML='';
+}
 function showLibraryPage(){
-  document.getElementById('reader').style.display     ='none';
-  document.getElementById('libraryPage').style.display='block';
-  document.getElementById('libTopbarBack').style.display='flex';
-  document.getElementById('zoomGroup').style.display  ='none';
-  document.getElementById('zoomDivider').style.display='none';
-  document.getElementById('navGroup').style.display   ='none';
-  document.getElementById('navDivider').style.display ='none';
+  if(readerActive&&!libraryOpen())readerScrollY=window.scrollY;
+  $('reader').style.display='none';
+  $('libraryPage').style.display='block';
+  window.scrollTo(0,0);
+  $('topbar').classList.remove('hidden');
+  syncTopbar();
 }
 function hideLibraryPage(){
-  document.getElementById('libraryPage').style.display='none';
-  document.getElementById('reader').style.display     ='';
-  document.getElementById('libTopbarBack').style.display='none';
-  if(document.querySelector('.page')){
-    document.getElementById('zoomGroup').style.display  ='flex';
-    document.getElementById('zoomDivider').style.display='block';
-    document.getElementById('filename').textContent=comicPlaylist[comicPlaylistIndex]?.name||'';
-    updateNavButtons();
-  }
+  $('libraryPage').style.display='none';
+  $('reader').style.display='';
+  closeRowMenus();
+  syncTopbar();
+  if(readerActive)window.scrollTo(0,readerScrollY);   // back to where you were reading
 }
 async function openLibraryPage(){
   if(!currentUser)return;
-  libCurrentFolderId=null;libFolderPath=[];
-  document.getElementById('libSearch').value='';libSearchTerm='';
-  showLibraryPage();await renderLibrary();
+  clearSearch();                    // keeps the last-visited folder
+  showLibraryPage();
+  await renderLibrary();
 }
-
-document.getElementById('libTopbarBack').addEventListener('click',hideLibraryPage);
-document.getElementById('libSearch').addEventListener('input',async()=>{
-  libSearchTerm=document.getElementById('libSearch').value.trim().toLowerCase();
+function clearSearch(){libSearchTerm='';$('libSearch').value='';}
+async function goToPath(path){
+  libFolderPath=path;
+  libCurrentFolderId=path.length?path[path.length-1].id:null;
+  clearSearch();
   await renderLibrary();
-});
-document.getElementById('libBackBtn').addEventListener('click',async()=>{
-  libFolderPath.pop();
-  libCurrentFolderId=libFolderPath.length?libFolderPath[libFolderPath.length-1].id:null;
-  await renderLibrary();
+}
+$('libTopbarBack').addEventListener('click',hideLibraryPage);
+$('libBackBtn').addEventListener('click',()=>goToPath(libFolderPath.slice(0,-1)));
+let searchTimer;
+$('libSearch').addEventListener('input',()=>{
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{libSearchTerm=$('libSearch').value.trim();renderLibrary();},250);
 });
 
 function renderBreadcrumb(){
-  const el=document.getElementById('libBreadcrumb');
-  document.getElementById('libBackBtn').style.display=libFolderPath.length?'flex':'none';
-  if(libFolderPath.length===0){el.innerHTML=`<span class="crumb-current">Home</span>`;return;}
-  let html=`<span class="crumb-link" data-idx="-1">Home</span>`;
+  const el=$('libBreadcrumb');
+  $('libBackBtn').style.display=libFolderPath.length?'flex':'none';
+  if(!libFolderPath.length){el.innerHTML='<span class="crumb-current">Home</span>';return;}
+  let html='<span class="crumb-link" data-idx="-1">Home</span>';
   libFolderPath.forEach((f,i)=>{
-    html+=`<span class="crumb-sep">/</span>`;
+    html+='<span class="crumb-sep">/</span>';
     html+=i===libFolderPath.length-1
       ?`<span class="crumb-current">${escHtml(f.name)}</span>`
       :`<span class="crumb-link" data-idx="${i}">${escHtml(f.name)}</span>`;
   });
   el.innerHTML=html;
-  el.querySelectorAll('.crumb-link').forEach(c=>{
-    c.addEventListener('click',async()=>{
-      const idx=parseInt(c.dataset.idx,10);
-      libFolderPath=idx===-1?[]:libFolderPath.slice(0,idx+1);
-      libCurrentFolderId=libFolderPath.length?libFolderPath[libFolderPath.length-1].id:null;
-      await renderLibrary();
-    });
-  });
+}
+$('libBreadcrumb').addEventListener('click',e=>{
+  const c=e.target.closest('.crumb-link');if(!c)return;
+  const idx=parseInt(c.dataset.idx,10);
+  goToPath(idx===-1?[]:libFolderPath.slice(0,idx+1));
+});
+
+const ICONS={
+  folder:'<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 5a1 1 0 0 1 1-1h3.5l1.5 2h7a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  dots:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="13" r="1.3" fill="currentColor"/></svg>',
+  rename:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2l2.5 2.5-7 7L2 12l.5-3 7-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+  move:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4a1 1 0 0 1 1-1h2.5l1 1.3h4.5a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+  info:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 6.5v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="4.5" r=".8" fill="currentColor"/></svg>',
+  trash:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8h6l.5-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+const menuItem=(action,id,icon,label,danger=false)=>
+  `<div class="lib-row-menu-item${danger?' danger':''}" data-action="${action}" data-id="${id}">${icon}${label}</div>`;
+const menuBlock=(kind,id,items)=>
+  `<button class="lib-row-menu-btn" data-kind="${kind}" data-id="${id}" aria-label="Options">${ICONS.dots}</button>
+   <div class="lib-row-menu" id="menu-${kind}-${id}">${items}</div>`;
+const DIVIDER='<div class="lib-row-menu-divider"></div>';
+
+function closeRowMenus(){document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));}
+
+async function fetchAllFolders(){
+  const{data,error}=await sb.from('folders').select('id,name,parent_id');
+  if(error)throw error;
+  return data||[];
+}
+function folderPathOf(map,id){
+  const out=[];let cur=map.get(id),guard=0;
+  while(cur&&guard++<50){out.unshift({id:cur.id,name:cur.name});cur=cur.parent_id?map.get(cur.parent_id):null;}
+  return out;
 }
 
 async function renderLibrary(){
+  const token=++libRenderToken;      // ignore responses that arrive after a newer render started
   renderBreadcrumb();
-  const list=document.getElementById('libList');
-  list.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon">⏳</div><div class="lib-empty-title">Loading…</div></div>`;
+  const list=$('libList');
+  list.innerHTML='<div class="lib-empty-state"><div class="lib-empty-icon">⏳</div><div class="lib-empty-title">Loading…</div></div>';
 
   let folders=[],files=[];
-  if(libSearchTerm){
-    const[{data:fAll},{data:lAll}]=await Promise.all([
-      sb.from('folders').select('*').ilike('name',`%${libSearchTerm}%`),
-      sb.from('library').select('*').ilike('name',`%${libSearchTerm}%`),
-    ]);
-    folders=fAll||[];files=lAll||[];
-  }else{
-    const folderQ=libCurrentFolderId
-      ?sb.from('folders').select('*').eq('parent_id',libCurrentFolderId)
-      :sb.from('folders').select('*').is('parent_id',null);
-    const fileQ=libCurrentFolderId
-      ?sb.from('library').select('*').eq('folder_id',libCurrentFolderId)
-      :sb.from('library').select('*').is('folder_id',null);
-    const[{data:fRes,error:fErr},{data:lRes,error:lErr}]=await Promise.all([
-      folderQ.order('name'),fileQ.order('added_at',{ascending:false}),
-    ]);
-    if(fErr||lErr){
-      list.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon">⚠️</div><div class="lib-empty-title">Couldn't load library</div><div class="lib-empty-sub">${escHtml((fErr||lErr).message)}</div></div>`;
-      return;
+  try{
+    let fq=sb.from('folders').select('*'),lq=sb.from('library').select('*');
+    if(libSearchTerm){
+      fq=fq.ilike('name',`%${libSearchTerm}%`);lq=lq.ilike('name',`%${libSearchTerm}%`);
+    }else{
+      fq=libCurrentFolderId?fq.eq('parent_id',libCurrentFolderId):fq.is('parent_id',null);
+      lq=libCurrentFolderId?lq.eq('folder_id',libCurrentFolderId):lq.is('folder_id',null);
     }
+    const[{data:fRes,error:fErr},{data:lRes,error:lErr}]=await Promise.all([
+      fq.order('name'),lq.order('added_at',{ascending:false}),
+    ]);
+    if(fErr||lErr)throw(fErr||lErr);
     folders=fRes||[];files=lRes||[];
+
+    // Fresh signed cover URLs (bucket is private) — one batched call
+    const coverPaths=files.filter(f=>f.cover_path).map(f=>f.cover_path);
+    const urlMap={};
+    if(coverPaths.length){
+      const{data:signed}=await sb.storage.from(BUCKET).createSignedUrls(coverPaths,3600);
+      (signed||[]).forEach(s=>{if(s.signedUrl)urlMap[s.path]=s.signedUrl;});
+    }
+    files.forEach(f=>{f.cover_url=f.cover_path?(urlMap[f.cover_path]||null):null;});
+  }catch(err){
+    if(token!==libRenderToken)return;
+    list.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon">⚠️</div><div class="lib-empty-title">Couldn't load library</div><div class="lib-empty-sub">${escHtml(friendlyError(err))}</div></div>`;
+    return;
   }
+  if(token!==libRenderToken)return;
 
-  // Save playlist for prev/next navigation (used when a comic is opened from this folder)
-  comicPlaylist=files;
-  comicPlaylistIndex=-1; // reset — no chapter is "active" while browsing the library
-  // Do NOT call updateNavButtons() here — nav buttons must stay hidden while in library view
+  libFolders=folders;libFiles=files;   // browse list only — the reading playlist is separate
 
-  if(folders.length===0&&files.length===0){
+  if(!folders.length&&!files.length){
     list.innerHTML=`<div class="lib-empty-state">
       <div class="lib-empty-icon">${libSearchTerm?'🔍':'📭'}</div>
       <div class="lib-empty-title">${libSearchTerm?'No results':'This folder is empty'}</div>
@@ -1047,272 +1192,214 @@ async function renderLibrary(){
     return;
   }
 
-  // Refresh signed cover URLs
-  await Promise.all(files.map(async comic=>{
-    if(comic.cover_path){
-      const{data:signed,error:sErr}=await sb.storage.from(BUCKET).createSignedUrl(comic.cover_path,3600);
-      comic.cover_url=sErr?null:signed?.signedUrl;
-    }else{comic.cover_url=null;}
-  }));
-
-  list.innerHTML='';
-
-  // Folders
-  for(const folder of folders){
-    const li=document.createElement('li');li.className='lib-row';
-    li.innerHTML=`
-      <div class="lib-row-icon folder">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path d="M2 5a1 1 0 0 1 1-1h3.5l1.5 2h7a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="lib-row-body">
-        <div class="lib-row-name">${escHtml(folder.name)}</div>
-        <div class="lib-row-meta">Folder</div>
-      </div>
-      <button class="lib-row-menu-btn" data-kind="folder" data-id="${folder.id}">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="3" r="1.3" fill="currentColor"/>
-          <circle cx="8" cy="8" r="1.3" fill="currentColor"/>
-          <circle cx="8" cy="13" r="1.3" fill="currentColor"/>
-        </svg>
-      </button>
-      <div class="lib-row-menu" id="menu-folder-${folder.id}">
-        <div class="lib-row-menu-item" data-action="rename-folder" data-id="${folder.id}">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2l2.5 2.5-7 7L2 12l.5-3 7-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-          Rename
-        </div>
-        <div class="lib-row-menu-divider"></div>
-        <div class="lib-row-menu-item danger" data-action="delete-folder" data-id="${folder.id}">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8h6l.5-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Delete folder
-        </div>
-      </div>`;
-    li.addEventListener('click',async e=>{
-      if(e.target.closest('.lib-row-menu-btn')||e.target.closest('.lib-row-menu'))return;
-      libFolderPath.push({id:folder.id,name:folder.name});
-      libCurrentFolderId=folder.id;
-      document.getElementById('libSearch').value='';libSearchTerm='';
-      await renderLibrary();
-    });
-    list.appendChild(li);
+  let html='';
+  for(const f of folders){
+    html+=`<li class="lib-row" data-kind="folder" data-id="${f.id}">
+      <div class="lib-row-icon folder">${ICONS.folder}</div>
+      <div class="lib-row-body"><div class="lib-row-name">${escHtml(f.name)}</div><div class="lib-row-meta">Folder</div></div>
+      ${menuBlock('folder',f.id,
+        menuItem('rename-folder',f.id,ICONS.rename,'Rename')+DIVIDER+menuItem('delete-folder',f.id,ICONS.trash,'Delete folder',true))}
+    </li>`;
   }
-
-  // Files
-  for(const comic of files){
-    const li=document.createElement('li');li.className='lib-row';
-    li.innerHTML=`
-      <div class="lib-row-icon">
-        ${comic.cover_url?`<img src="${escHtml(comic.cover_url)}" alt="cover"/>`:'📖'}
-      </div>
-      <div class="lib-row-body">
-        <div class="lib-row-name">${escHtml(comic.name)}</div>
-        <div class="lib-row-meta">${formatBytes(comic.size)}</div>
-      </div>
-      <button class="lib-row-menu-btn" data-kind="file" data-id="${comic.id}">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="3" r="1.3" fill="currentColor"/>
-          <circle cx="8" cy="8" r="1.3" fill="currentColor"/>
-          <circle cx="8" cy="13" r="1.3" fill="currentColor"/>
-        </svg>
-      </button>
-      <div class="lib-row-menu" id="menu-file-${comic.id}">
-        <div class="lib-row-menu-item" data-action="rename-file" data-id="${comic.id}">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5h2.5l6-6a1.77 1.77 0 0 0-2.5-2.5l-6 6V10.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M7.5 3l2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          Rename
-        </div>
-        <div class="lib-row-menu-item" data-action="move-file" data-id="${comic.id}">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4a1 1 0 0 1 1-1h2.5l1 1.3h4.5a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-          Move to…
-        </div>
-        <div class="lib-row-menu-item" data-action="info-file" data-id="${comic.id}">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 6.5v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="4.5" r=".8" fill="currentColor"/></svg>
-          Info
-        </div>
-        <div class="lib-row-menu-divider"></div>
-        <div class="lib-row-menu-item danger" data-action="delete-file" data-id="${comic.id}">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8h6l.5-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Delete
-        </div>
-      </div>`;
-    li.addEventListener('click',async e=>{
-      if(e.target.closest('.lib-row-menu-btn')||e.target.closest('.lib-row-menu'))return;
-      hideLibraryPage();await openComicFromCloud(comic);
-    });
-    list.appendChild(li);
+  for(const c of files){
+    html+=`<li class="lib-row" data-kind="file" data-id="${c.id}">
+      <div class="lib-row-icon">${c.cover_url?`<img src="${escHtml(c.cover_url)}" alt="cover"/>`:'📖'}</div>
+      <div class="lib-row-body"><div class="lib-row-name">${escHtml(c.name)}</div><div class="lib-row-meta">${formatBytes(c.size)}</div></div>
+      ${menuBlock('file',c.id,
+        menuItem('rename-file',c.id,ICONS.rename,'Rename')+
+        menuItem('move-file',c.id,ICONS.move,'Move to…')+
+        menuItem('info-file',c.id,ICONS.info,'Info')+DIVIDER+
+        menuItem('delete-file',c.id,ICONS.trash,'Delete',true))}
+    </li>`;
   }
-
-  // Wire three-dot menus
-  list.querySelectorAll('.lib-row-menu-btn').forEach(btn=>{
-    btn.addEventListener('click',e=>{
-      e.stopPropagation();
-      const menu=document.getElementById(`menu-${btn.dataset.kind}-${btn.dataset.id}`);
-      const wasOpen=menu.classList.contains('open');
-      document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));
-      if(!wasOpen)menu.classList.add('open');
-    });
-  });
-
-  list.querySelectorAll('[data-action]').forEach(item=>{
-    item.addEventListener('click',async e=>{
-      e.stopPropagation();
-      const{action,id}=item.dataset;
-      document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));
-      if(action==='delete-folder'){
-        if(!confirm('Delete this folder and everything inside it?'))return;
-        await deleteFolderRecursive(id);showToast('Folder deleted.');await renderLibrary();
-      }else if(action==='rename-folder'){
-        const folder=folders.find(f=>f.id===id);
-        const newName=prompt('Rename folder:',folder?.name||'');
-        if(newName&&newName.trim()){
-          await sb.from('folders').update({name:newName.trim()}).eq('id',id);
-          showToast('Folder renamed.');await renderLibrary();
-        }
-      }else if(action==='rename-file'){
-        const comic=files.find(c=>c.id===id);
-        openRenameModal(comic);
-      }else if(action==='info-file'){
-        const comic=files.find(c=>c.id===id);if(comic)openFileInfoModal(comic);
-      }else if(action==='delete-file'){
-        const comic=files.find(c=>c.id===id);if(!comic)return;
-        if(!confirm(`Delete "${comic.name}"?`))return;
-        await sb.storage.from(BUCKET).remove([comic.storage_path]);
-        if(comic.cover_path)await sb.storage.from(BUCKET).remove([comic.cover_path]);
-        await sb.from('library').delete().eq('id',id);
-        showToast('Deleted.');await renderLibrary();
-      }else if(action==='move-file'){
-        const comic=files.find(c=>c.id===id);if(comic)await openMoveModal(comic);
-      }
-    });
-  });
+  list.innerHTML=html;
 }
 
-document.addEventListener('click',e=>{
-  if(!e.target.closest('.lib-row-menu-btn'))
-    document.querySelectorAll('.lib-row-menu.open').forEach(m=>m.classList.remove('open'));
+// One delegated handler for rows, three-dot buttons and menu items
+$('libList').addEventListener('click',async e=>{
+  const menuBtn=e.target.closest('.lib-row-menu-btn');
+  if(menuBtn){
+    const menu=$(`menu-${menuBtn.dataset.kind}-${menuBtn.dataset.id}`);
+    const wasOpen=menu.classList.contains('open');
+    closeRowMenus();
+    if(!wasOpen)menu.classList.add('open');
+    return;
+  }
+  const item=e.target.closest('[data-action]');
+  if(item){closeRowMenus();await handleRowAction(item.dataset.action,item.dataset.id);return;}
+  if(e.target.closest('.lib-row-menu'))return;
+  const row=e.target.closest('.lib-row[data-id]');
+  if(!row)return;
+  if(row.dataset.kind==='folder')await openFolder(row.dataset.id);
+  else await openFile(row.dataset.id);
 });
 
-async function deleteFolderRecursive(folderId){
-  const{data:children}=await sb.from('folders').select('id').eq('parent_id',folderId);
-  for(const c of(children||[]))await deleteFolderRecursive(c.id);
-  const{data:filesIn}=await sb.from('library').select('*').eq('folder_id',folderId);
-  for(const f of(filesIn||[])){
-    await sb.storage.from(BUCKET).remove([f.storage_path]);
-    if(f.cover_path)await sb.storage.from(BUCKET).remove([f.cover_path]);
-  }
-  await sb.from('library').delete().eq('folder_id',folderId);
-  await sb.from('folders').delete().eq('id',folderId);
+async function openFolder(id){
+  const f=libFolders.find(x=>x.id===id);if(!f)return;
+  let path;
+  if(libSearchTerm){   // from search results the folder may live anywhere — rebuild its real path
+    try{const all=await fetchAllFolders();path=folderPathOf(new Map(all.map(x=>[x.id,x])),id);}
+    catch(err){showToast(friendlyError(err),'error');return;}
+  }else path=[...libFolderPath,{id:f.id,name:f.name}];
+  await goToPath(path);
+}
+async function openFile(id){
+  const comic=libFiles.find(c=>c.id===id);if(!comic)return;
+  hideLibraryPage();
+  await openComicFromCloud(comic);
 }
 
-// FAB
-document.getElementById('libFabBtn').addEventListener('click',e=>{
-  e.stopPropagation();document.getElementById('libFabMenu').classList.toggle('open');
-});
-document.addEventListener('click',()=>document.getElementById('libFabMenu').classList.remove('open'));
-document.getElementById('fabNewFolder').addEventListener('click',()=>{
-  document.getElementById('libFabMenu').classList.remove('open');
-  document.getElementById('folderNameInput').value='';
+async function handleRowAction(action,id){
+  try{
+    if(action==='rename-folder'){
+      const f=libFolders.find(x=>x.id===id);if(f)openRenameModal('folder',f);
+    }else if(action==='rename-file'){
+      const c=libFiles.find(x=>x.id===id);if(c)openRenameModal('file',c);
+    }else if(action==='info-file'){
+      const c=libFiles.find(x=>x.id===id);if(c)openFileInfoModal(c);
+    }else if(action==='move-file'){
+      const c=libFiles.find(x=>x.id===id);if(c)await openMoveModal(c);
+    }else if(action==='delete-folder'){
+      const f=libFolders.find(x=>x.id===id);
+      const ok=await confirmDialog({title:'Delete folder?',message:`"${f?f.name:'This folder'}" and everything inside it will be permanently deleted.`,confirmText:'Delete folder'});
+      if(!ok)return;
+      await deleteFolderRecursive(id);
+      showToast('Folder deleted.');await renderLibrary();
+    }else if(action==='delete-file'){
+      const c=libFiles.find(x=>x.id===id);if(!c)return;
+      const ok=await confirmDialog({title:'Delete file?',message:`"${c.name}" will be permanently deleted.`,confirmText:'Delete'});
+      if(!ok)return;
+      await removeStorage([c.storage_path,c.cover_path].filter(Boolean));
+      const{error}=await sb.from('library').delete().eq('id',id);
+      if(error)throw error;
+      comicPlaylist=comicPlaylist.filter(x=>x.id!==id);
+      showToast('Deleted.');await renderLibrary();
+    }
+  }catch(err){console.error(err);showToast(friendlyError(err),'error');}
+}
+
+async function removeStorage(paths){
+  for(let i=0;i<paths.length;i+=100){
+    const{error}=await sb.storage.from(BUCKET).remove(paths.slice(i,i+100));
+    if(error)throw error;
+  }
+}
+async function deleteFolderRecursive(rootId){
+  const all=await fetchAllFolders();
+  const ids=[rootId];
+  for(let i=0;i<ids.length;i++)all.filter(f=>f.parent_id===ids[i]).forEach(f=>ids.push(f.id));
+  const{data:filesIn,error}=await sb.from('library').select('id,storage_path,cover_path').in('folder_id',ids);
+  if(error)throw error;
+  const paths=[];
+  (filesIn||[]).forEach(f=>{if(f.storage_path)paths.push(f.storage_path);if(f.cover_path)paths.push(f.cover_path);});
+  await removeStorage(paths);
+  if(filesIn&&filesIn.length){
+    const{error:e1}=await sb.from('library').delete().in('folder_id',ids);
+    if(e1)throw e1;
+  }
+  const{error:e2}=await sb.from('folders').delete().eq('id',rootId);   // sub-folders cascade
+  if(e2)throw e2;
+}
+
+// ── FAB / NEW FOLDER ──────────────────────────────────────
+$('libFabBtn').addEventListener('click',()=>$('libFabMenu').classList.toggle('open'));
+$('fabNewFolder').addEventListener('click',()=>{
+  $('libFabMenu').classList.remove('open');
+  $('folderNameInput').value='';
   openModal('folderModal');
-  setTimeout(()=>document.getElementById('folderNameInput').focus(),250);
+  setTimeout(()=>$('folderNameInput').focus(),250);
 });
-document.getElementById('fabUpload').addEventListener('click',()=>{
-  document.getElementById('libFabMenu').classList.remove('open');
-  document.getElementById('libFileInput').click();
-});
-
-// New folder modal
-document.getElementById('folderModalClose').addEventListener('click',()=>closeModal('folderModal'));
-document.getElementById('folderCreateBtn').addEventListener('click',async()=>{
-  const name=document.getElementById('folderNameInput').value.trim();
+$('fabUpload').addEventListener('click',()=>{$('libFabMenu').classList.remove('open');$('libFileInput').click();});
+$('folderModalClose').addEventListener('click',()=>closeModal('folderModal'));
+$('folderCreateBtn').addEventListener('click',async()=>{
+  const name=$('folderNameInput').value.trim();
   if(!name){showToast('Please enter a folder name.','error');return;}
-  const{error}=await sb.from('folders').insert({user_id:currentUser.id,name,parent_id:libCurrentFolderId});
-  if(error){showToast(error.message,'error');return;}
-  closeModal('folderModal');showToast(`Folder "${name}" created.`);await renderLibrary();
+  const btn=$('folderCreateBtn');btn.disabled=true;
+  try{
+    const{error}=await sb.from('folders').insert({user_id:currentUser.id,name,parent_id:libCurrentFolderId});
+    if(error)throw error;
+    closeModal('folderModal');showToast(`Folder "${name}" created.`);await renderLibrary();
+  }catch(err){showToast(friendlyError(err),'error');}
+  finally{btn.disabled=false;}
 });
-document.getElementById('folderNameInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter')document.getElementById('folderCreateBtn').click();
-});
+$('folderNameInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('folderCreateBtn').click();});
 
-// Move to modal
+// ── MOVE MODAL ────────────────────────────────────────────
 let moveTargetComic=null;
 async function openMoveModal(comic){
   moveTargetComic=comic;
-  document.getElementById('moveModalSub').textContent=`Choose where to move "${comic.name}".`;
-  const moveList=document.getElementById('moveList');
-  moveList.innerHTML=`<div class="lib-empty-state" style="padding:24px"><div class="lib-empty-icon">⏳</div></div>`;
+  $('moveModalSub').textContent=`Choose where to move "${comic.name}".`;
+  const ml=$('moveList');
+  ml.innerHTML='<div class="lib-empty-state" style="padding:24px"><div class="lib-empty-icon">⏳</div></div>';
   openModal('moveModal');
-  const{data:allFolders}=await sb.from('folders').select('*').order('name');
-  const fList=allFolders||[];
+  let folders;
+  try{folders=await fetchAllFolders();}
+  catch(err){ml.innerHTML=`<div class="lib-empty-sub" style="padding:20px">${escHtml(friendlyError(err))}</div>`;return;}
+  const map=new Map(folders.map(f=>[f.id,f]));
+  // show the full path so nested folders with the same name can be told apart
+  const rows=folders.map(f=>({id:f.id,label:folderPathOf(map,f.id).map(p=>p.name).join(' / ')}))
+    .sort((a,b)=>naturalCompare(a.label,b.label));
+  const FOLDER_SVG='<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5a1 1 0 0 1 1-1h3.5l1.5 2h6a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
   let html=`<div class="move-item${!comic.folder_id?' current':''}" data-target="root">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l6-5 6 5M4 7v6h8V7" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-    Home${!comic.folder_id?' (current)':''}
-  </div>`;
-  fList.forEach(f=>{
-    html+=`<div class="move-item${comic.folder_id===f.id?' current':''}" data-target="${f.id}">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5a1 1 0 0 1 1-1h3.5l1.5 2h6a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-      ${escHtml(f.name)}${comic.folder_id===f.id?' (current)':''}
-    </div>`;
+    Home${!comic.folder_id?' (current)':''}</div>`;
+  rows.forEach(r=>{
+    const cur=comic.folder_id===r.id;
+    html+=`<div class="move-item${cur?' current':''}" data-target="${r.id}">${FOLDER_SVG}${escHtml(r.label)}${cur?' (current)':''}</div>`;
   });
-  moveList.innerHTML=html;
-  moveList.querySelectorAll('.move-item').forEach(item=>{
-    item.addEventListener('click',async()=>{
-      const newFolderId=item.dataset.target==='root'?null:item.dataset.target;
-      if(newFolderId===comic.folder_id){closeModal('moveModal');return;}
-      await sb.from('library').update({folder_id:newFolderId}).eq('id',comic.id);
-      closeModal('moveModal');showToast(`Moved "${comic.name}".`);await renderLibrary();
-    });
-  });
+  ml.innerHTML=html;
 }
-// ═══════════════════════════════════════════════════════════
-//  RENAME MODAL
-// ═══════════════════════════════════════════════════════════
-let renameTargetId = null;
-
-function openRenameModal(comic) {
-  renameTargetId = comic.id;
-  const input = document.getElementById('renameInput');
-  input.value = comic.name || '';
-  document.getElementById('renameError').classList.remove('show');
-  openModal('renameModal');
-  // Select all text for quick overwrite
-  setTimeout(() => { input.focus(); input.select(); }, 200);
-}
-
-async function doRename() {
-  const newName = document.getElementById('renameInput').value.trim();
-  const errEl   = document.getElementById('renameError');
-  errEl.classList.remove('show');
-  if (!newName) { errEl.textContent = 'Please enter a file name.'; errEl.classList.add('show'); return; }
-
-  const btn = document.getElementById('renameConfirmBtn');
-  btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Renaming…`;
-
-  const { error } = await sb.from('library').update({ name: newName }).eq('id', renameTargetId);
-  if (error) {
-    errEl.textContent = 'Failed to rename. Please try again.';
-    errEl.classList.add('show');
-    btn.disabled = false; btn.innerHTML = 'Rename';
-    return;
-  }
-  closeModal('renameModal');
-  showToast('File renamed.');
+$('moveList').addEventListener('click',async e=>{
+  const item=e.target.closest('.move-item');
+  if(!item||item.classList.contains('current')||!moveTargetComic)return;
+  const target=item.dataset.target==='root'?null:item.dataset.target;
+  const{error}=await sb.from('library').update({folder_id:target}).eq('id',moveTargetComic.id);
+  if(error){showToast(friendlyError(error),'error');return;}
+  closeModal('moveModal');showToast(`Moved "${moveTargetComic.name}".`);
   await renderLibrary();
-  btn.disabled = false; btn.innerHTML = 'Rename';
-}
-
-document.getElementById('renameConfirmBtn').addEventListener('click', doRename);
-document.getElementById('renameCancelBtn') .addEventListener('click', () => closeModal('renameModal'));
-document.getElementById('renameModalClose').addEventListener('click', () => closeModal('renameModal'));
-document.getElementById('renameInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doRename();
-  if (e.key === 'Escape') closeModal('renameModal');
 });
+$('moveModalClose').addEventListener('click',()=>closeModal('moveModal'));
 
-document.getElementById('moveModalClose').addEventListener('click',()=>closeModal('moveModal'));
+// ── RENAME MODAL (files + folders) ────────────────────────
+let renameTarget=null;   // { kind:'file'|'folder', id }
+function openRenameModal(kind,item){
+  renameTarget={kind,id:item.id};
+  const isFolder=kind==='folder';
+  $('renameTitle').textContent=isFolder?'Rename folder':'Rename file';
+  $('renameSub').textContent  =isFolder?'Enter a new name for this folder.':'Enter a new name for this file.';
+  $('renameLabel').textContent=isFolder?'Folder name':'File name';
+  $('renameInput').placeholder=isFolder?'Folder name':'filename.cbz';
+  $('renameInput').value=item.name||'';
+  $('renameError').classList.remove('show');
+  openModal('renameModal');
+  setTimeout(()=>{$('renameInput').focus();$('renameInput').select();},200);
+}
+async function doRename(){
+  const newName=$('renameInput').value.trim();
+  const errEl=$('renameError');errEl.classList.remove('show');
+  if(!newName){errEl.textContent='Please enter a name.';errEl.classList.add('show');return;}
+  if(!renameTarget)return;
+  const btn=$('renameConfirmBtn');
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> Renaming…';
+  try{
+    const table=renameTarget.kind==='folder'?'folders':'library';
+    const{error}=await sb.from(table).update({name:newName}).eq('id',renameTarget.id);
+    if(error)throw error;
+    closeModal('renameModal');
+    showToast(renameTarget.kind==='folder'?'Folder renamed.':'File renamed.');
+    await renderLibrary();
+  }catch(err){errEl.textContent=friendlyError(err);errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.textContent='Rename';}
+}
+$('renameConfirmBtn').addEventListener('click',doRename);
+$('renameCancelBtn') .addEventListener('click',()=>closeModal('renameModal'));
+$('renameModalClose').addEventListener('click',()=>closeModal('renameModal'));
+$('renameInput').addEventListener('keydown',e=>{if(e.key==='Enter')doRename();});
 
-// Library file upload
-document.getElementById('libFileInput').addEventListener('change',async e=>{
-  const files=Array.from(e.target.files);if(!files.length)return;e.target.value='';
+// ── LIBRARY UPLOAD ────────────────────────────────────────
+$('libFileInput').addEventListener('change',async e=>{
+  const files=Array.from(e.target.files);e.target.value='';
+  if(!files.length)return;
   const multi=files.length>1;
   for(let i=0;i<files.length;i++){
     await uploadToCloud(files[i],libCurrentFolderId,multi?`${i+1} of ${files.length}`:null);
@@ -1320,157 +1407,176 @@ document.getElementById('libFileInput').addEventListener('change',async e=>{
   await renderLibrary();
 });
 
-// Upload to cloud
+let progTimer;
+// Resolves true on success, false on failure (so callers only mark a file "saved" when it really is)
 async function uploadToCloud(file,folderId=null,label=null){
-  if(!currentUser)return;
-  const prog=document.getElementById('libProgress');
-  const bar=document.getElementById('libProgressBar');
-  const pName=document.getElementById('libProgressName');
-  const pStatus=document.getElementById('libProgressStatus');
+  if(!currentUser)return false;
+  const prog=$('libProgress'),bar=$('libProgressBar'),pName=$('libProgressName'),pStatus=$('libProgressStatus');
+  clearTimeout(progTimer);
   pName.textContent=label?`${label}  •  ${file.name}`:file.name;
-  pStatus.textContent='Extracting cover…';bar.style.width='0%';prog.classList.add('show');
+  pStatus.textContent='Checking archive…';bar.style.background='';bar.style.width='0%';prog.classList.add('show');
+  const uploaded=[];   // storage paths created by this attempt, removed again if anything fails
   try{
-    let coverUrl=null,coverPath=null;
-    bar.style.width='10%';
+    let zip;
+    try{zip=await JSZip.loadAsync(file);}
+    catch(e){throw new Error(`"${file.name}" isn't a valid CBZ/ZIP archive.`);}
+    const names=imageNamesFromZip(zip);
+    if(!names.length)throw new Error(`"${file.name}" doesn't contain any images.`);
+
+    const uid=currentUser.id;
+    const stamp=`${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+    bar.style.width='10%';pStatus.textContent='Extracting cover…';
+    let coverPath=null;
     try{
-      const zip=await JSZip.loadAsync(file);
-      const imgs=Object.keys(zip.files).filter(n=>/\.(jpg|jpeg|png|webp)$/i.test(n))
-        .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
-      if(imgs.length>0){
-        const blob=await zip.files[imgs[0]].async('blob');
-        const thumbBlob=await resizeBlob(blob,300);
-        const thumbPath=`${currentUser.id}/covers/${Date.now()}_cover.jpg`;
-        const{error:upErr}=await sb.storage.from(BUCKET).upload(thumbPath,thumbBlob,{contentType:'image/jpeg',upsert:true});
-        if(!upErr){
-          coverPath=thumbPath;
-          const{data:signed,error:sErr}=await sb.storage.from(BUCKET).createSignedUrl(thumbPath,60*60*24*365);
-          if(!sErr)coverUrl=signed?.signedUrl||null;
-        }
+      const thumb=await resizeBlob(await zip.files[names[0]].async('blob'),300);
+      if(thumb){
+        const p=`${uid}/covers/${stamp}_cover.jpg`;
+        const{error}=await sb.storage.from(BUCKET).upload(p,thumb,{contentType:'image/jpeg',upsert:true});
+        if(!error){coverPath=p;uploaded.push(p);}
       }
-    }catch(e){}
+    }catch(e){console.warn('Cover extraction failed',e);}
+
     bar.style.width='30%';pStatus.textContent='Uploading file…';
-    const storagePath=`${currentUser.id}/comics/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const storagePath=`${uid}/comics/${stamp}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
     const{error:upErr}=await sb.storage.from(BUCKET).upload(storagePath,file,{contentType:'application/zip',upsert:false});
     if(upErr)throw upErr;
+    uploaded.push(storagePath);
+
     bar.style.width='85%';pStatus.textContent='Saving to library…';
     const{error:dbErr}=await sb.from('library').insert({
-      user_id:currentUser.id,name:file.name,size:file.size,
-      cover_url:coverUrl,cover_path:coverPath,storage_path:storagePath,folder_id:folderId,
+      user_id:uid,name:file.name,size:file.size,
+      cover_url:null,cover_path:coverPath,storage_path:storagePath,folder_id:folderId,
     });
     if(dbErr)throw dbErr;
+
     bar.style.width='100%';pStatus.textContent='Done!';
-    setTimeout(()=>prog.classList.remove('show'),1000);
+    progTimer=setTimeout(()=>prog.classList.remove('show'),1000);
     showToast(`"${file.name}" saved.`);
+    return true;
   }catch(err){
+    console.error(err);
+    if(uploaded.length){try{await sb.storage.from(BUCKET).remove(uploaded);}catch(e){}}   // no orphaned files
     pStatus.textContent='Upload failed.';bar.style.background='var(--danger)';
-    setTimeout(()=>{prog.classList.remove('show');bar.style.background='';},2000);
-    showToast(err.message||'Upload failed.','error');console.error(err);
+    progTimer=setTimeout(()=>{prog.classList.remove('show');bar.style.background='';},2000);
+    showToast(friendlyError(err),'error');
+    return false;
   }
 }
 
 // ── ACCOUNT SETTINGS ──────────────────────────────────────
 function openSettingsModal(){
-  document.getElementById('settingsName').value =currentUser?.user_metadata?.name||'';
-  document.getElementById('settingsEmail').value=currentUser?.email||'';
-  document.getElementById('newPassword').value='';
-  document.getElementById('confirmPassword').value='';
-  document.getElementById('deleteConfirmInput').value='';
-  ['profileError','profileInfo','passwordError','passwordInfo','deleteError'].forEach(id=>{
-    document.getElementById(id).classList.remove('show');
-  });
+  $('settingsName').value =currentUser?.user_metadata?.name||'';
+  $('settingsEmail').value=currentUser?.email||'';
+  $('newPassword').value='';$('confirmPassword').value='';$('deleteConfirmInput').value='';
+  ['profileError','profileInfo','passwordError','passwordInfo','deleteError'].forEach(id=>$(id).classList.remove('show'));
   activateSettingsTab('profile');openModal('settingsModal');
 }
 function activateSettingsTab(tab){
   document.querySelectorAll('.settings-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
-  ['profile','password','danger'].forEach(p=>document.getElementById(`tab-${p}`).style.display=p===tab?'block':'none');
+  ['profile','password','danger'].forEach(p=>$(`tab-${p}`).style.display=p===tab?'block':'none');
 }
-document.querySelectorAll('.settings-tab').forEach(tab=>{
-  tab.addEventListener('click',()=>activateSettingsTab(tab.dataset.tab));
-});
-document.getElementById('settingsModalClose').addEventListener('click',()=>closeModal('settingsModal'));
+document.querySelectorAll('.settings-tab').forEach(tab=>tab.addEventListener('click',()=>activateSettingsTab(tab.dataset.tab)));
+$('settingsModalClose').addEventListener('click',()=>closeModal('settingsModal'));
 
-document.getElementById('saveProfileBtn').addEventListener('click',async()=>{
-  const name=document.getElementById('settingsName').value.trim();
-  const email=document.getElementById('settingsEmail').value.trim();
-  const errEl=document.getElementById('profileError');const infoEl=document.getElementById('profileInfo');
+$('saveProfileBtn').addEventListener('click',async()=>{
+  const name=$('settingsName').value.trim(),email=$('settingsEmail').value.trim();
+  const errEl=$('profileError'),infoEl=$('profileInfo'),btn=$('saveProfileBtn');
   errEl.classList.remove('show');infoEl.classList.remove('show');
   if(!name||!email){errEl.textContent='Name and email are required.';errEl.classList.add('show');return;}
-  const btn=document.getElementById('saveProfileBtn');
-  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> Saving…`;
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> Saving…';
   try{
-    const updates={data:{name}};if(email!==currentUser.email)updates.email=email;
+    const emailChanged=email.toLowerCase()!==(currentUser.email||'').toLowerCase();
+    const updates={data:{name}};if(emailChanged)updates.email=email;
     const{error}=await sb.auth.updateUser(updates);if(error)throw error;
-    const{data:{user}}=await sb.auth.getUser();currentUser=user;setLoggedIn(user);
-    infoEl.textContent='Profile updated successfully.';infoEl.classList.add('show');showToast('Profile updated.');
-  }catch(err){errEl.textContent=err.message||'Failed to update profile.';errEl.classList.add('show');}
-  finally{btn.disabled=false;btn.innerHTML='Save changes';}
+    const{data:{user}}=await sb.auth.getUser();
+    if(user)setLoggedIn(user);
+    infoEl.textContent=emailChanged
+      ?'Name updated. Check your new email inbox to confirm the email change.'
+      :'Profile updated successfully.';
+    infoEl.classList.add('show');showToast('Profile updated.');
+  }catch(err){errEl.textContent=friendlyError(err);errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.textContent='Save changes';}
 });
 
-document.getElementById('savePasswordBtn').addEventListener('click',async()=>{
-  const newPw=document.getElementById('newPassword').value;
-  const confPw=document.getElementById('confirmPassword').value;
-  const errEl=document.getElementById('passwordError');const infoEl=document.getElementById('passwordInfo');
+$('savePasswordBtn').addEventListener('click',async()=>{
+  const newPw=$('newPassword').value,confPw=$('confirmPassword').value;
+  const errEl=$('passwordError'),infoEl=$('passwordInfo'),btn=$('savePasswordBtn');
   errEl.classList.remove('show');infoEl.classList.remove('show');
   if(!newPw){errEl.textContent='Please enter a new password.';errEl.classList.add('show');return;}
   if(newPw.length<6){errEl.textContent='Password must be at least 6 characters.';errEl.classList.add('show');return;}
   if(newPw!==confPw){errEl.textContent='Passwords do not match.';errEl.classList.add('show');return;}
-  const btn=document.getElementById('savePasswordBtn');
-  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> Updating…`;
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> Updating…';
   try{
     const{error}=await sb.auth.updateUser({password:newPw});if(error)throw error;
-    document.getElementById('newPassword').value='';document.getElementById('confirmPassword').value='';
+    $('newPassword').value='';$('confirmPassword').value='';
     infoEl.textContent='Password updated.';infoEl.classList.add('show');showToast('Password updated.');
-  }catch(err){errEl.textContent=err.message||'Failed.';errEl.classList.add('show');}
-  finally{btn.disabled=false;btn.innerHTML='Update password';}
+  }catch(err){errEl.textContent=friendlyError(err);errEl.classList.add('show');}
+  finally{btn.disabled=false;btn.textContent='Update password';}
 });
 
-document.getElementById('deleteAccountBtn').addEventListener('click',async()=>{
-  const val=document.getElementById('deleteConfirmInput').value.trim();
-  const errEl=document.getElementById('deleteError');errEl.classList.remove('show');
-  if(val!=='DELETE'){errEl.textContent='Please type DELETE (all caps) to confirm.';errEl.classList.add('show');return;}
-  const btn=document.getElementById('deleteAccountBtn');
-  btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> Deleting…`;
+$('deleteAccountBtn').addEventListener('click',async()=>{
+  const errEl=$('deleteError'),btn=$('deleteAccountBtn');
+  errEl.classList.remove('show');
+  if($('deleteConfirmInput').value.trim()!=='DELETE'){
+    errEl.textContent='Please type DELETE (all caps) to confirm.';errEl.classList.add('show');return;
+  }
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> Deleting…';
+  let dataWiped=false;
   try{
-    const{data:comics}=await sb.from('library').select('storage_path,cover_path');
+    const{data:comics,error:selErr}=await sb.from('library').select('storage_path,cover_path');
+    if(selErr)throw selErr;
     const paths=[];
-    for(const c of(comics||[])){if(c.storage_path)paths.push(c.storage_path);if(c.cover_path)paths.push(c.cover_path);}
-    if(paths.length)await sb.storage.from(BUCKET).remove(paths);
-    await sb.from('library').delete().eq('user_id',currentUser.id);
-    await sb.from('folders').delete().eq('user_id',currentUser.id);
-    const{error}=await sb.rpc('delete_user');
-    if(error)throw new Error('Could not delete account. Run the delete_user SQL function in your Supabase dashboard first.');
-    await sb.auth.signOut();closeModal('settingsModal');
-    currentUser=null;setLoggedIn(null);showHomeState(false);showToast('Account deleted.','info');
+    (comics||[]).forEach(c=>{if(c.storage_path)paths.push(c.storage_path);if(c.cover_path)paths.push(c.cover_path);});
+    await removeStorage(paths);
+    const uid=currentUser.id;
+    const{error:e1}=await sb.from('library').delete().eq('user_id',uid);if(e1)throw e1;
+    const{error:e2}=await sb.from('folders').delete().eq('user_id',uid);if(e2)throw e2;
+    dataWiped=true;
+    const{error:rpcErr}=await sb.rpc('delete_user');
+    if(rpcErr)throw new Error('Your files and library were removed, but the account itself could not be deleted. Make sure the delete_user() SQL function exists in Supabase, then try again.');
+    try{await sb.auth.signOut();}catch(e){}
+    closeModal('settingsModal');
+    setLoggedIn(null);resetReader();
+    showToast('Account deleted.','info');
   }catch(err){
-    errEl.textContent=err.message||'Failed.';errEl.classList.add('show');
-    btn.disabled=false;btn.innerHTML='Delete my account permanently';
+    errEl.textContent=(dataWiped&&!/removed/.test(err.message||'')?'Your files were removed, but: ':'')+friendlyError(err);
+    errEl.classList.add('show');
+  }finally{
+    btn.disabled=false;btn.textContent='Delete my account permanently';
   }
 });
 
 // ── FILE INFO ─────────────────────────────────────────────
 function openFileInfoModal(comic){
-  document.getElementById('fileInfoName').textContent    =comic.name;
-  document.getElementById('fileInfoSize').textContent    =formatBytes(comic.size);
-  document.getElementById('fileInfoSizeFull').textContent=formatBytes(comic.size);
-  const thumbEl=document.getElementById('fileInfoThumb');
-  thumbEl.innerHTML=comic.cover_url?`<img src="${escHtml(comic.cover_url)}" style="width:100%;height:100%;object-fit:cover" alt="cover"/>`:'📖';
+  $('fileInfoName').textContent    =comic.name;
+  $('fileInfoSize').textContent    =formatBytes(comic.size);
+  $('fileInfoSizeFull').textContent=formatBytes(comic.size);
+  $('fileInfoThumb').innerHTML=comic.cover_url
+    ?`<img src="${escHtml(comic.cover_url)}" style="width:100%;height:100%;object-fit:cover" alt="cover"/>`:'📖';
   if(comic.added_at){
     const dt=new Date(comic.added_at);
-    document.getElementById('fileInfoDate').textContent=dt.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
-    document.getElementById('fileInfoTime').textContent=dt.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase();
+    $('fileInfoDate').textContent=dt.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
+    $('fileInfoTime').textContent=dt.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase();
   }else{
-    document.getElementById('fileInfoDate').textContent='—';
-    document.getElementById('fileInfoTime').textContent='—';
+    $('fileInfoDate').textContent='—';$('fileInfoTime').textContent='—';
   }
   openModal('fileInfoModal');
 }
-document.getElementById('fileInfoModalClose').addEventListener('click',()=>closeModal('fileInfoModal'));
+$('fileInfoModalClose').addEventListener('click',()=>closeModal('fileInfoModal'));
 
 // ── INIT ──────────────────────────────────────────────────
 (async()=>{
-  const{data:{session}}=await sb.auth.getSession();
-  setLoggedIn(session?.user||null);
-  sb.auth.onAuthStateChange((_,session)=>setLoggedIn(session?.user||null));
+  try{
+    const{data:{session}}=await sb.auth.getSession();
+    setLoggedIn(session?.user||null);
+  }catch(err){
+    console.error(err);setLoggedIn(null);showToast(friendlyError(err),'error');
+  }
+  // only re-render when the signed-in user actually changes (not on every token refresh / tab focus)
+  sb.auth.onAuthStateChange((event,session)=>{
+    const u=session?.user||null;
+    if((u?.id||null)!==(currentUser?.id||null)||event==='USER_UPDATED')setLoggedIn(u);
+  });
 })();
 </script>
 </body>
