@@ -402,6 +402,7 @@
       <div class="user-menu" id="userMenu">
         <div class="user-menu-header">
           <div class="user-menu-name" id="menuName"></div>
+          <div class="user-menu-email" id="menuUsername" style="display:none;color:var(--accent)"></div>
           <div class="user-menu-email" id="menuEmail"></div>
         </div>
         <div class="user-menu-item" id="menuLibrary">
@@ -453,9 +454,13 @@
       <label>Name</label>
       <input type="text" id="authName" placeholder="Your name" autocomplete="name"/>
     </div>
+    <div class="field" id="usernameField" style="display:none">
+      <label>Username <span style="text-transform:none;letter-spacing:0;color:var(--text-faint)">(optional)</span></label>
+      <input type="text" id="authUsername" placeholder="Your username" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="20"/>
+    </div>
     <div class="field">
-      <label>Email</label>
-      <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email"/>
+      <label id="authIdLabel">Email or username</label>
+      <input type="text" id="authEmail" placeholder="email or username" autocomplete="username" autocapitalize="none" spellcheck="false"/>
     </div>
     <div class="field">
       <label>Password</label>
@@ -589,6 +594,10 @@
       <div class="form-error" id="profileError"></div>
       <div class="form-info" id="profileInfo"></div>
       <div class="field"><label>Display Name</label><input type="text" id="settingsName" placeholder="Your name"/></div>
+      <div class="field"><label>Username</label>
+        <input type="text" id="settingsUsername" placeholder="Choose a username" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="20"/>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.5">3–20 characters: letters, numbers, underscore. You can sign in with it instead of your email.</div>
+      </div>
       <div class="field"><label>Email</label><input type="email" id="settingsEmail" placeholder="you@example.com"/></div>
       <button class="btn-primary" id="saveProfileBtn">Save changes</button>
     </div>
@@ -651,6 +660,8 @@ const SUPABASE_URL = 'https://jimjjtrmislwdleueeyb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_yGE7cI31ZF26t_J2eye80A_VAs9DqBk';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const BUCKET = 'cbz-files';
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const USERNAME_HELP = 'Username must be 3–20 characters: letters, numbers or underscore.';
 const IMG_RE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 const $ = id => document.getElementById(id);
 
@@ -660,6 +671,8 @@ function formatBytes(b){if(!b)return'—';if(b<1024)return b+'B';if(b<1048576)re
 const naturalCompare=(a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'});
 function friendlyError(err){
   const m=(err&&err.message)||String(err||'');
+  if(/could not find the (function|table)|schema cache|does not exist/i.test(m)&&/username|email_for_login|profiles/i.test(m))
+    return 'Usernames need a one-time database setup — run username-migration.sql in the Supabase SQL Editor.';
   if(/failed to fetch|networkerror|load failed/i.test(m))
     return "Can't reach the server. Check your connection — if it keeps happening, your Supabase project may be paused (restore it from the Supabase dashboard).";
   return m||'Something went wrong.';
@@ -745,6 +758,26 @@ let currentFile=null;            // { file, name, fromCloud }
 let currentName='';
 let comicPlaylist=[],comicPlaylistIndex=-1;   // chapters of the comic being READ
 let loadToken=0,pageUrls=[],readerScrollY=0,savingLocal=false;
+let currentUsername=null,profileUserId=null;
+
+function updateUsernameUI(){
+  const el=$('menuUsername');
+  el.textContent=currentUsername?'@'+currentUsername:'';
+  el.style.display=currentUsername?'block':'none';
+}
+async function loadProfile(){
+  const uid=currentUser&&currentUser.id;if(!uid)return;
+  try{
+    const{data,error}=await sb.from('profiles').select('username').eq('user_id',uid).maybeSingle();
+    if(error)throw error;
+    if(currentUser&&currentUser.id===uid){currentUsername=data?data.username:null;updateUsernameUI();}
+  }catch(e){console.warn('Profile not loaded (has username-migration.sql been run?)',e);}
+}
+async function usernameAvailable(name){
+  const{data,error}=await sb.rpc('username_available',{name});
+  if(error)throw error;
+  return data===true;
+}
 
 const libraryOpen=()=>$('libraryPage').style.display!=='none';
 
@@ -802,7 +835,9 @@ function setLoggedIn(user){
     $('userChipName').textContent=name.split(' ')[0];
     $('menuName').textContent    =name;
     $('menuEmail').textContent   =email;
+    if(profileUserId!==user.id){profileUserId=user.id;currentUsername=null;updateUsernameUI();loadProfile();}
   }else{
+    profileUserId=null;currentUsername=null;updateUsernameUI();
     resetLibraryState();
     if(libraryOpen())hideLibraryPage();
   }
@@ -827,7 +862,7 @@ $('brandHome').addEventListener('click',()=>{
 // ── AUTH ──────────────────────────────────────────────────
 function openAuthModal(signup=false){
   setAuthMode(signup);
-  ['authEmail','authPassword','authName'].forEach(id=>$(id).value='');
+  ['authEmail','authPassword','authName','authUsername'].forEach(id=>$(id).value='');
   openModal('authModal');
   setTimeout(()=>$('authEmail').focus(),300);
 }
@@ -837,6 +872,11 @@ function setAuthMode(signup){
   $('authSub').textContent    =signup?'Start building your cloud library.':'Welcome back. Your library is waiting.';
   $('authSubmit').textContent =signup?'Create account':'Sign in';
   $('nameField').style.display=signup?'flex':'none';
+  $('usernameField').style.display=signup?'flex':'none';
+  $('authIdLabel').textContent=signup?'Email':'Email or username';
+  $('authEmail').type=signup?'email':'text';
+  $('authEmail').placeholder=signup?'you@example.com':'email or username';
+  $('authEmail').autocomplete=signup?'email':'username';
   $('authPassword').autocomplete=signup?'new-password':'current-password';
   $('authError').classList.remove('show');
   $('authInfo').classList.remove('show');
@@ -856,15 +896,19 @@ $('authSubmit').addEventListener('click',async()=>{
   const email=$('authEmail').value.trim();
   const password=$('authPassword').value;
   const name=$('authName').value.trim();
+  const username=$('authUsername').value.trim();
   const errEl=$('authError'),infoEl=$('authInfo'),btn=$('authSubmit');
   errEl.classList.remove('show');infoEl.classList.remove('show');
   if(!email||!password){errEl.textContent='Please fill in all fields.';errEl.classList.add('show');return;}
   if(isSignup&&!name){errEl.textContent='Please enter your name.';errEl.classList.add('show');return;}
+  if(isSignup&&username&&!USERNAME_RE.test(username)){errEl.textContent=USERNAME_HELP;errEl.classList.add('show');return;}
+  if(isSignup&&email.includes('@')===false){errEl.textContent='Please enter a valid email address.';errEl.classList.add('show');return;}
   if(password.length<6){errEl.textContent='Password must be at least 6 characters.';errEl.classList.add('show');return;}
   btn.disabled=true;btn.innerHTML=`<div class="spinner"></div> ${isSignup?'Creating account…':'Signing in…'}`;
   try{
     if(isSignup){
-      const{data,error}=await sb.auth.signUp({email,password,options:{data:{name}}});
+      if(username&&!(await usernameAvailable(username)))throw new Error('That username is already taken.');
+      const{data,error}=await sb.auth.signUp({email,password,options:{data:username?{name,username}:{name}}});
       if(error)throw error;
       // Supabase returns a fake user with no identities when the email is already registered
       if(data.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0)
@@ -877,14 +921,22 @@ $('authSubmit').addEventListener('click',async()=>{
       }
       afterAuth(data.user,`Welcome, ${name}! 🎉`);
     }else{
-      const{data,error}=await sb.auth.signInWithPassword({email,password});
+      // "Email or username": usernames can't contain @, so the two never clash
+      let loginEmail=email;
+      if(!email.includes('@')){
+        const{data:found,error:lookupErr}=await sb.rpc('email_for_login',{identifier:email});
+        if(lookupErr)throw lookupErr;
+        if(!found)throw new Error('Invalid login credentials');   // same wording as a wrong password
+        loginEmail=found;
+      }
+      const{data,error}=await sb.auth.signInWithPassword({email:loginEmail,password});
       if(error)throw error;
       afterAuth(data.user,`Welcome back, ${data.user.user_metadata?.name||data.user.email.split('@')[0]}!`);
     }
   }catch(err){errEl.textContent=friendlyError(err);errEl.classList.add('show');}
   finally{btn.disabled=false;btn.textContent=isSignup?'Create account':'Sign in';}
 });
-['authEmail','authPassword','authName'].forEach(id=>{
+['authEmail','authPassword','authName','authUsername'].forEach(id=>{
   $(id).addEventListener('keydown',e=>{if(e.key==='Enter')$('authSubmit').click();});
 });
 
@@ -1467,6 +1519,7 @@ async function uploadToCloud(file,folderId=null,label=null){
 function openSettingsModal(){
   $('settingsName').value =currentUser?.user_metadata?.name||'';
   $('settingsEmail').value=currentUser?.email||'';
+  $('settingsUsername').value=currentUsername||'';
   $('newPassword').value='';$('confirmPassword').value='';$('deleteConfirmInput').value='';
   ['profileError','profileInfo','passwordError','passwordInfo','deleteError'].forEach(id=>$(id).classList.remove('show'));
   activateSettingsTab('profile');openModal('settingsModal');
@@ -1480,11 +1533,20 @@ $('settingsModalClose').addEventListener('click',()=>closeModal('settingsModal')
 
 $('saveProfileBtn').addEventListener('click',async()=>{
   const name=$('settingsName').value.trim(),email=$('settingsEmail').value.trim();
+  const username=$('settingsUsername').value.trim();
   const errEl=$('profileError'),infoEl=$('profileInfo'),btn=$('saveProfileBtn');
   errEl.classList.remove('show');infoEl.classList.remove('show');
   if(!name||!email){errEl.textContent='Name and email are required.';errEl.classList.add('show');return;}
   btn.disabled=true;btn.innerHTML='<div class="spinner"></div> Saving…';
   try{
+    // username first: it is the step most likely to fail (already taken), and then nothing else changes
+    if(username!==(currentUsername||'')){
+      if(!username)throw new Error("A username can't be removed once set — pick a different one instead.");
+      if(!USERNAME_RE.test(username))throw new Error(USERNAME_HELP);
+      const{error:uErr}=await sb.from('profiles').upsert({user_id:currentUser.id,username},{onConflict:'user_id'});
+      if(uErr){if(uErr.code==='23505')throw new Error('That username is already taken.');throw uErr;}
+      currentUsername=username;updateUsernameUI();
+    }
     const emailChanged=email.toLowerCase()!==(currentUser.email||'').toLowerCase();
     const updates={data:{name}};if(emailChanged)updates.email=email;
     const{error}=await sb.auth.updateUser(updates);if(error)throw error;
